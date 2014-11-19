@@ -83,12 +83,13 @@ def multi_day_authors(in_file, num_days):
 
 def return_borough_tags(valid_authors, in_file):
     """
-    given the shapefile of boroughs and
+    given the shapefile of boroughs and an input file plus valid authors...
+    we return a series of objects: classification + tags
     :param valid_authors:
     :param in_file:
     :return:
     """
-    pass
+    
 
 
 def pull_data():
@@ -124,5 +125,5 @@ if __name__ == "__main__":
     #     if r['owner'] in nyc_authors:
     #         pic_count += 1
     # print pic_count, tot_count
-    pull_data()
+    # pull_data()
     print "done"
