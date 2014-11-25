@@ -1,5 +1,7 @@
-DS_Store
+*.pyc
+shp/
+.DS_Store
 .idea/
 *.json
-/src/api_key.txt
+src/api_key.txt
 
