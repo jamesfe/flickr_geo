@@ -5,6 +5,8 @@ import json
 import requests
 import time
 import datetime
+import fiona
+from shapely.geometry import Point, shape
 
 API_KEY = open("api_key.txt", 'r').read().strip()
 NY_LAT = 40.69
@@ -89,7 +91,57 @@ def return_borough_tags(valid_authors, in_file):
     :param in_file:
     :return:
     """
-    pass
+    starttime = time.time()
+    # not_nyc = fiona.open("./shp/empty_nyc.shp", 'r')
+    # for poly in not_nyc:
+    #     not_nyc_shp = shape(poly['geometry'])
+
+    boroughs = fiona.open('./shp/nybb_wgs84.shp', 'r')
+    geoms = list()
+    for item in boroughs:
+        shply_shape = shape(item['geometry'])
+        adder = [shply_shape, item['properties']['BoroName']]
+        geoms.append(adder)
+
+    in_reader = open(in_file, 'r')
+    tag_returns = list()
+    count = 0
+    totcount = 0
+    for line in in_reader:
+        try:
+            jsline = json.loads(line)
+            if jsline['owner'] in valid_authors:
+                lat = jsline['latitude']
+                lon = jsline['longitude']
+                # It pains me to do the below two lines, but sometimes flickr
+                # sends back geos that match NYC but the original data is bad
+                # I think it has to do with their indexing being diffrent from
+                # actual values?  But anyways, we need the data and the tags
+                # make sense for NYC.
+                if lon > 0:
+                    lon *= -1
+                tgt_point = Point(lon, lat)  # silly shapely - Point(x,y,z)
+                new_val = list()
+                # if not tgt_point.intersects(not_nyc_shp):
+                for index, geo in enumerate(geoms):
+                    if tgt_point.intersects(geo[0]):
+                        new_val.append(index)
+                        break
+                if len(new_val) == 0:
+                    count += 1
+
+                split_tags = jsline['tags'].split(" ")
+                if len(new_val) > 0 and len(split_tags) > 1:
+                    new_val.append(split_tags)
+                    tag_returns.append(new_val)
+        except ValueError:
+            pass
+    print count
+    print len(tag_returns)
+    print tag_returns
+    tot_time = time.time() - starttime
+    print tot_time
+    return tag_returns
 
 
 def pull_data():
@@ -97,6 +149,7 @@ def pull_data():
     generic function to grab more data
     :return:
     """
+
     nyc_file = open("nyc_json_fll.json", 'a')
     wdc_file = open("wdc_json_fll.json", 'a')
 
@@ -117,8 +170,10 @@ def pull_data():
 if __name__ == "__main__":
     # pic_count = 0
     # tot_count = 0
-    # tgt_nyc_file = "nyc_json.json"
-    # nyc_authors = multi_day_authors(tgt_nyc_file, 14)
+    tgt_nyc_file = "nyc_json.json"
+    nyc_authors = multi_day_authors(tgt_nyc_file, 5)
+    print len(nyc_authors)
+    ret_tags = return_borough_tags(nyc_authors, tgt_nyc_file)
     # for k in open(tgt_nyc_file, 'r'):
     #     r = json.loads(k)
     #     tot_count += 1
@@ -126,4 +181,16 @@ if __name__ == "__main__":
     #         pic_count += 1
     # print pic_count, tot_count
     # pull_data()
+    # print nyc_authors
+
     print "done"
+
+
+    # {"ispublic": 1, "place_id": "5ebRtgVTUro3guGorw", "geo_is_public": 1,
+    # "owner": "72098626@N00", "id": "15604638529", "title": "Skateboard kid #8",
+    # "woeid": "20070197", "geo_is_friend": 0, "geo_is_contact": 0, "datetaken":
+    # "2014-09-28 16:02:01", "isfriend": 0, "secret": "abf65e17a8", "ownername":
+    # "Ed Yourdon", "latitude": 40.731371, "accuracy": "16", "isfamily": 0,
+    # "tags": "newyork greenwichvillage streetsofnewyork streetsofny everyblock",
+    # "farm": 8, "geo_is_family": 0, "dateupload": "1416009675",
+    # "datetakengranularity": "0", "longitude": 74.005447, "server": "7477", "context": 0}
