@@ -1,0 +1,12 @@
+manhattan
+bronx
+new york
+newyork
+new
+york
+borough
+staten
+island
+brooklyn
+queen
+queens
