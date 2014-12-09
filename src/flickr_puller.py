@@ -176,24 +176,47 @@ def pull_data():
     generic function to grab more data
     :return:
     """
-    nyc_file = open("nyc_json_fll.json", 'a')
-    wdc_file = open("wdc_json_fll.json", 'a')
 
-    for i in range(1, 10000):
+    targets = [{'lat': BRONX_LAT, 'lon': BRONX_LON, 'fname': "bronx.json"},
+               {'lat': STISL_LAT, 'lon': STISL_LON, 'fname': "stisle.json"}]
+
+    for target in targets:
+        tm = str(time.time()).split(".")[0]
+        target['file'] = open(tm+target['fname'], 'w')
+
+    for i in range(1, 1000):
         print "Iteration: " + str(i)
-        nyc_photos = get_payload(NY_LAT, NY_LON, i)
-        print "NYC Photos: " + str(len(nyc_photos))
-        for photo in nyc_photos:
-            nyc_file.write(json.dumps(photo) + "\n")
-        wdc_photos = get_payload(DC_LAT, DC_LON, i)
-        print "WDC Photos: " + str(len(wdc_photos))
-        for photo in wdc_photos:
-            wdc_file.write(json.dumps(photo) + "\n")
+        for target in targets:
+            ret_photos = get_payload(target['lat'], target['lon'], i)
+            for photo in ret_photos:
+                target['file'].write(json.dumps(photo) + "\n")
 
-    nyc_file.close()
-    wdc_file.close()
+    for target in targets:
+        target['file'].close()
 
-if __name__ == "__main__":
+    tgt_1 = open("nyc_json_fll.json", 'a')
+    tgt_2 = open("wdc_json_fll.json", 'a')
+    #
+    # for i in range(1, 10000):
+    #     print "Iteration: " + str(i)
+    #     nyc_photos = get_payload(NY_LAT, NY_LON, i)
+    #     print "NYC Photos: " + str(len(nyc_photos))
+    #     for photo in nyc_photos:
+    #         tgt_1.write(json.dumps(photo) + "\n")
+    #     wdc_photos = get_payload(DC_LAT, DC_LON, i)
+    #     print "WDC Photos: " + str(len(wdc_photos))
+    #     for photo in wdc_photos:
+    #         tgt_2.write(json.dumps(photo) + "\n")
+    #
+    # tgt_1.close()
+    # tgt_2.close()
+
+
+if __name__ == '__main__':
+    pull_data()
+
+
+def train_dataset():
 
     ## Below lines of code find the authors that are valid for
     ## inclusion in our training set.
