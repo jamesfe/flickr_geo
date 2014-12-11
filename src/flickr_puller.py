@@ -8,6 +8,8 @@ import datetime
 import fiona
 from shapely.geometry import Point, shape
 import pickle
+import psycopg2
+import os
 
 ## scikitlearn stuff
 from sklearn.feature_extraction.text import CountVectorizer
@@ -31,7 +33,7 @@ STISL_LON = -74.14
 STISL_LAT = 40.58
 
 
-def get_payload(city_lat, city_lon, c_page):
+def get_payload(city_lat, city_lon, c_page, min_date):
     """
     Get a number of photos within 32km of a point.
     :param city_lat: latitude in DD
@@ -46,9 +48,8 @@ def get_payload(city_lat, city_lon, c_page):
                "radius": 32,
                "extras": "date_upload,date_taken,owner_name,geo,tags",
                "per_page": 250,
-               "min_upload_date":1356998400,
-               "max_upload_date":1388534400, 
-               #"min_upload_date": "2014-01-01",
+               "min_upload_date": min_date,
+               "max_upload_date": min_date+86400,
                "format": "json",
                "nojsoncallback": 1,
                "page": c_page,
@@ -56,6 +57,7 @@ def get_payload(city_lat, city_lon, c_page):
     flickr_req = requests.get("https://api.flickr.com/services/rest/",
                               params=payload)
     photo_list = json.loads(flickr_req.text)
+
     return photo_list["photos"]["photo"]
 
 
@@ -171,49 +173,153 @@ def return_borough_tags(valid_authors, in_file):
     return tag_returns
 
 
+def build_targets(inpt, num, basename):
+    latdiff = inpt[0][0] - inpt[1][0]
+    londiff = inpt[0][1] - inpt[1][1]
+    retvals = list()
+    for cval in range(0, num):
+        newlat = inpt[0][0] + (latdiff / num) * cval
+        newlon = inpt[0][1] + (londiff / num) * cval
+        fname = basename + "_" + str(cval) + ".json"
+        r = dict({'lat': newlat, 'lon': newlon, 'fname': fname})
+        retvals.append(r)
+    return retvals
+
+
 def pull_data():
     """
     generic function to grab more data
     :return:
     """
+    dc_pt = [[40, -78], [37, -75]]
+    ny_pt = [[42, -75], [39, -73]]
 
-    targets = [{'lat': BRONX_LAT, 'lon': BRONX_LON, 'fname': "bronx.json"},
-               {'lat': STISL_LAT, 'lon': STISL_LON, 'fname': "stisle.json"}]
+    targets = build_targets(dc_pt, 10, "dc_targets")
+    targets.extend(build_targets(ny_pt, 10, "nyc_targets"))
 
     for target in targets:
-        tm = str(time.time()).split(".")[0]
-        target['file'] = open(tm+target['fname'], 'w')
+        tm = "./megapull2012/" + str(time.time()).split(".")[0]
+        target['file'] = open(tm + target['fname'], 'w')
 
-    for i in range(1, 1000):
-        print "Iteration: " + str(i)
-        for target in targets:
-            ret_photos = get_payload(target['lat'], target['lon'], i)
-            for photo in ret_photos:
-                target['file'].write(json.dumps(photo) + "\n")
+    for curr_eval in range(1, 10):
+        print "Page Pull: " + str(curr_eval)
+        base_time = 1326243661
+        for sec_time in range(0, 365):
+            dt = base_time + (sec_time * 86400)
+            print "Day of Year: ",sec_time
+            for target in targets:
+                ret_photos = get_payload(target['lat'], target['lon'],
+                                         curr_eval, dt)
+                for photo in ret_photos:
+                    target['file'].write(json.dumps(photo) + "\n")
 
     for target in targets:
         target['file'].close()
 
-    tgt_1 = open("nyc_json_fll.json", 'a')
-    tgt_2 = open("wdc_json_fll.json", 'a')
-    #
-    # for i in range(1, 10000):
-    #     print "Iteration: " + str(i)
-    #     nyc_photos = get_payload(NY_LAT, NY_LON, i)
-    #     print "NYC Photos: " + str(len(nyc_photos))
-    #     for photo in nyc_photos:
-    #         tgt_1.write(json.dumps(photo) + "\n")
-    #     wdc_photos = get_payload(DC_LAT, DC_LON, i)
-    #     print "WDC Photos: " + str(len(wdc_photos))
-    #     for photo in wdc_photos:
-    #         tgt_2.write(json.dumps(photo) + "\n")
-    #
-    # tgt_1.close()
-    # tgt_2.close()
 
+def connect():
+    """
+    Connect to DB.
+    :return:
+    """
+    global CONNECTION
+    conn_str = "dbname='jimmy1' user='jimmy1' " \
+               "host='localhost' " \
+               "port='5432' "
+    CONNECTION = psycopg2.connect(conn_str)
+    return CONNECTION
+
+
+def file_to_database(filename):
+    """
+    take a file and push all JSON to database
+    :param filename:
+    :return:
+    """
+    print filename
+    global CONNECTION
+    CONNECTION = connect()
+    curs = CONNECTION.cursor()
+    infile = open(filename, 'r')
+    count = 0
+    ids = set()
+    inserts = 0
+    for line in infile:
+        # if count > 100:
+        #     break
+        count += 1
+        if count % 10000 == 0:
+            print "Count: ", count, inserts
+        try:
+            line = json.loads(line)
+        except:
+            continue
+
+        res = list([0])
+        if line['id'] not in ids:
+            sql = "SELECT COUNT(*) FROM flickr_data WHERE id=%s"
+            data = (line['id'],)
+            curs.execute(sql, data)
+            res = curs.fetchone()
+        else:
+            res = list([1])
+
+        if res[0] >= 1:
+            ids.add(line['id'])
+
+        if res[0] == 0:
+            # print line
+            flds = ['ispublic',
+                    'place_id',
+                    'geo_is_public',
+                    'owner',
+                    'id',
+                    'title',
+                    'woeid',
+                    'geo_is_friend',
+                    'geo_is_contact',
+                    'datetaken',
+                    'isfriend',
+                    'secret',
+                    'ownername',
+                    'latitude',
+                    'longitude',
+                    'accuracy',
+                    'isfamily',
+                    'tags',
+                    'farm',
+                    'geo_is_family',
+                    'dateupload',
+                    'datetakengranularity',
+                    'server',
+                    'context']
+            fields = list()
+            data = list()
+            for fld in flds:
+                if fld in line:
+                    fields.append(fld)
+                    data.append(line[fld])
+            fields = ",".join(fields)
+            dataholder = (",%s"*len(data))[1:]
+            sql = "INSERT INTO flickr_data (" + fields + ") VALUES (" + dataholder + ")"
+            # print curs.mogrify(sql, data)
+
+            try:
+                curs.execute(sql, data)
+                inserts += 1
+                CONNECTION.commit()
+                ids.add(line['id'])
+            except psycopg2.Error, err:
+                print("ERROR: {0} {1}".format(
+                    err.diag.severity, err.pgerror))
+
+    print "Imported: ", inserts, " out of ", count
 
 if __name__ == '__main__':
     pull_data()
+    #
+    # for k in os.listdir("./megapull/"):
+    #     file_to_database("./megapull/" + k)
 
 
 def train_dataset():
