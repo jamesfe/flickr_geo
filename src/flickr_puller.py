@@ -186,7 +186,7 @@ def build_targets(inpt, num, basename):
     return retvals
 
 
-def pull_data():
+def pull_data(minpage, minday):
     """
     generic function to grab more data
     :return:
@@ -199,12 +199,16 @@ def pull_data():
 
     for target in targets:
         tm = "./megapull2012/" + str(time.time()).split(".")[0]
-        target['file'] = open(tm + target['fname'], 'w')
+        target['file'] = open(tm + target['fname'], 'a')
 
-    for curr_eval in range(1, 10):
+    for curr_eval in range(minpage, 10):
         print "Page Pull: " + str(curr_eval)
         base_time = 1326243661
-        for sec_time in range(0, 365):
+        if curr_eval == minpage:
+            md = minday
+        else:
+            md = 0
+        for sec_time in range(md, 365):
             dt = base_time + (sec_time * 86400)
             print "Day of Year: ",sec_time
             for target in targets:
@@ -316,9 +320,9 @@ def file_to_database(filename):
     print "Imported: ", inserts, " out of ", count
 
 if __name__ == '__main__':
-    pull_data()
+    pull_data(2, 138)
     #
-    # for k in os.listdir("./megapull/"):
+    # for k in os.listdir("./megacpull/"):
     #     file_to_database("./megapull/" + k)
 
 
