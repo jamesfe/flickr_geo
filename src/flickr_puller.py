@@ -103,6 +103,47 @@ def multi_day_authors(in_file, num_days):
     return valid_authors
 
 
+def get_borough_item(json_line, borough_geoms, stopwords):
+    """
+    given a line of JSON data, return the borough and JSON line, if applicable.
+    If no borough, return a -1 code .
+    :param json_line: JSON flickr object
+    :param borough_geoms: Geometry objects for boroughs
+    :return: (borough_key, JSON flickr object)
+    """
+    geoms = borough_geoms
+
+    lat = json_line['latitude']
+    lon = json_line['longitude']
+    # It pains me to do the below two lines, but sometimes flickr
+    # sends back geos that match NYC but the original data is bad
+    # I think it has to do with their indexing being diffrent from
+    # actual values?  But anyways, we need the data and the tags
+    # make sense for NYC.
+    if lon > 0:
+        lon *= -1
+    tgt_point = Point(lon, lat)  # silly shapely - Point(x,y,z)
+
+    ret_val = list()
+
+    # if not tgt_point.intersects(not_nyc_shp):
+    for index, geo in enumerate(geoms):
+        if tgt_point.intersects(geo[0]):
+            ret_val.append(index)
+            break
+
+    tags = json_line['tags'].lower()
+    if ret_val[0] < 0:
+        return -1
+    elif len(tags) > 5:  # more than 5 chars
+        for sw in stopwords:
+            tags = tags.replace(sw, "")
+            json_line['tags'] = tags
+        ret_val.append(json_line)
+    return ret_val
+
+
+
 def return_borough_tags(valid_authors, in_file):
     """
     given the shapefile of boroughs and an input file plus valid authors...
@@ -138,31 +179,11 @@ def return_borough_tags(valid_authors, in_file):
             totcount += 1
             jsline = json.loads(line)
             if jsline['owner'] in valid_authors:
-                lat = jsline['latitude']
-                lon = jsline['longitude']
-                # It pains me to do the below two lines, but sometimes flickr
-                # sends back geos that match NYC but the original data is bad
-                # I think it has to do with their indexing being diffrent from
-                # actual values?  But anyways, we need the data and the tags
-                # make sense for NYC.
-                if lon > 0:
-                    lon *= -1
-                tgt_point = Point(lon, lat)  # silly shapely - Point(x,y,z)
-                new_val = list()
-                # if not tgt_point.intersects(not_nyc_shp):
-                for index, geo in enumerate(geoms):
-                    if tgt_point.intersects(geo[0]):
-                        new_val.append(index)
-                        break
-                if len(new_val) == 0:
-                    count += 1
+                b_class = get_borough_item(jsline, geoms, stopwords)
+                # Get the borough class from this function.
+                if b_class >= 0:
+                    tag_returns.append(b_class)
 
-                tags = jsline['tags'].lower()
-                if len(new_val) > 0 and len(tags) > 5:  # more than 5 chars
-                    for sw in stopwords:
-                        tags = tags.replace(sw, "")
-                    new_val.append(tags)
-                    tag_returns.append(new_val)
         except ValueError:
             pass
     print count, totcount
@@ -198,7 +219,7 @@ def pull_data(minpage, minday):
     targets.extend(build_targets(ny_pt, 10, "nyc_targets"))
 
     for target in targets:
-        tm = "./megapull2012/" + str(time.time()).split(".")[0]
+        tm = "./megapull2012_2/" + str(time.time()).split(".")[0]
         target['file'] = open(tm + target['fname'], 'a')
 
     for curr_eval in range(minpage, 10):
@@ -320,10 +341,10 @@ def file_to_database(filename):
     print "Imported: ", inserts, " out of ", count
 
 if __name__ == '__main__':
-    pull_data(2, 138)
+    # pull_data(4, 16)
     #
-    # for k in os.listdir("./megacpull/"):
-    #     file_to_database("./megapull/" + k)
+    for k in os.listdir("./megapull2012/"):
+        file_to_database("./megapull2012/" + k)
 
 
 def train_dataset():
