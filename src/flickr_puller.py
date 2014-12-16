@@ -41,6 +41,8 @@ def get_payload(city_lat, city_lon, c_page, min_date):
     :param c_page:  which page do you want? 1-n
     :return:
     """
+    start = time.time()
+    threshold = 1.1  # number of seconds we want a call to take
     payload = {"method": "flickr.photos.search",
                "accuracy": 8,
                "lat": city_lat,
@@ -57,7 +59,9 @@ def get_payload(city_lat, city_lon, c_page, min_date):
     flickr_req = requests.get("https://api.flickr.com/services/rest/",
                               params=payload)
     photo_list = json.loads(flickr_req.text)
-
+    tot_time = time.time() - start
+    if tot_time < threshold:
+        time.sleep(threshold - tot_time)
     return photo_list["photos"]["photo"]
 
 
@@ -143,7 +147,6 @@ def get_borough_item(json_line, borough_geoms, stopwords):
     return ret_val
 
 
-
 def return_borough_tags(valid_authors, in_file):
     """
     given the shapefile of boroughs and an input file plus valid authors...
@@ -198,12 +201,13 @@ def build_targets(inpt, num, basename):
     latdiff = inpt[0][0] - inpt[1][0]
     londiff = inpt[0][1] - inpt[1][1]
     retvals = list()
-    for cval in range(0, num):
-        newlat = inpt[0][0] + (latdiff / num) * cval
-        newlon = inpt[0][1] + (londiff / num) * cval
-        fname = basename + "_" + str(cval) + ".json"
-        r = dict({'lat': newlat, 'lon': newlon, 'fname': fname})
-        retvals.append(r)
+    for latval in range(0, num):
+        for lonval in range(0, num):
+            newlat = inpt[0][0] + (latdiff / num) * latval
+            newlon = inpt[0][1] + (londiff / num) * lonval
+            fname = basename + "_" + str(latval) + "_" + str(lonval) + ".json"
+            r = dict({'lat': newlat, 'lon': newlon, 'fname': fname})
+            retvals.append(r)
     return retvals
 
 
@@ -219,24 +223,31 @@ def pull_data(minpage, minday):
     targets.extend(build_targets(ny_pt, 10, "nyc_targets"))
 
     for target in targets:
-        tm = "./megapull2012_2/" + str(time.time()).split(".")[0]
+        tm = "./fix_megapull_2012/" + str(time.time()).split(".")[0]
         target['file'] = open(tm + target['fname'], 'a')
 
+    totcount = 0
     for curr_eval in range(minpage, 10):
         print "Page Pull: " + str(curr_eval)
-        base_time = 1326243661
+        base_time = 1325379661
         if curr_eval == minpage:
             md = minday
         else:
             md = 0
+
         for sec_time in range(md, 365):
+            yearcount = 0
             dt = base_time + (sec_time * 86400)
-            print "Day of Year: ",sec_time
+            print time.asctime(), "Day of Year: ", sec_time, " Photos: ", \
+                yearcount, totcount
             for target in targets:
                 ret_photos = get_payload(target['lat'], target['lon'],
                                          curr_eval, dt)
                 for photo in ret_photos:
                     target['file'].write(json.dumps(photo) + "\n")
+                    yearcount += 1
+                    totcount += 1
+            print yearcount, totcount
 
     for target in targets:
         target['file'].close()
@@ -341,10 +352,10 @@ def file_to_database(filename):
     print "Imported: ", inserts, " out of ", count
 
 if __name__ == '__main__':
-    # pull_data(4, 16)
+    pull_data(1, 1)
     #
-    for k in os.listdir("./megapull2012/"):
-        file_to_database("./megapull2012/" + k)
+    # for k in os.listdir("./megapull2012/"):
+    #     file_to_database("./megapull2012/" + k)
 
 
 def train_dataset():
