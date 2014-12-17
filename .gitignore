@@ -1,3 +1,6 @@
+/nltk-trainer/
+*.ipynb
+*.pickle
 .ipynb_checkpoints/
 *.pyc
 shp/

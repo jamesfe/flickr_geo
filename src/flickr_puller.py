@@ -197,62 +197,6 @@ def return_borough_tags(valid_authors, in_file):
     return tag_returns
 
 
-def build_targets(inpt, num, basename):
-    latdiff = inpt[0][0] - inpt[1][0]
-    londiff = inpt[0][1] - inpt[1][1]
-    retvals = list()
-    for latval in range(0, num):
-        for lonval in range(0, num):
-            newlat = inpt[0][0] + (latdiff / num) * latval
-            newlon = inpt[0][1] + (londiff / num) * lonval
-            fname = basename + "_" + str(latval) + "_" + str(lonval) + ".json"
-            r = dict({'lat': newlat, 'lon': newlon, 'fname': fname})
-            retvals.append(r)
-    return retvals
-
-
-def pull_data(minpage, minday):
-    """
-    generic function to grab more data
-    :return:
-    """
-    dc_pt = [[40, -78], [37, -75]]
-    ny_pt = [[42, -75], [39, -73]]
-
-    targets = build_targets(dc_pt, 10, "dc_targets")
-    targets.extend(build_targets(ny_pt, 10, "nyc_targets"))
-
-    for target in targets:
-        tm = "./fix_megapull_2012/" + str(time.time()).split(".")[0]
-        target['file'] = open(tm + target['fname'], 'a')
-
-    totcount = 0
-    for curr_eval in range(minpage, 10):
-        print "Page Pull: " + str(curr_eval)
-        base_time = 1325379661
-        if curr_eval == minpage:
-            md = minday
-        else:
-            md = 0
-
-        for sec_time in range(md, 365):
-            yearcount = 0
-            dt = base_time + (sec_time * 86400)
-            print time.asctime(), "Day of Year: ", sec_time, " Photos: ", \
-                yearcount, totcount
-            for target in targets:
-                ret_photos = get_payload(target['lat'], target['lon'],
-                                         curr_eval, dt)
-                for photo in ret_photos:
-                    target['file'].write(json.dumps(photo) + "\n")
-                    yearcount += 1
-                    totcount += 1
-            print yearcount, totcount
-
-    for target in targets:
-        target['file'].close()
-
-
 def connect():
     """
     Connect to DB.
@@ -266,6 +210,47 @@ def connect():
     return CONNECTION
 
 
+def import_line(line):
+    """
+    Given a line, put it in the database (if it's not already there)
+    :param line: an object, formerly from JSON
+    :return:
+    """
+    curs = CONNECTION.cursor()
+
+    res = list([0])
+
+    sql = "SELECT COUNT(*) FROM flickr_data WHERE id=%s"
+    data = (line['id'],)
+    curs.execute(sql, data)
+    res = curs.fetchone()
+
+    if res[0] == 0:
+        flds = ['ispublic', 'place_id', 'geo_is_public', 'owner',
+                'id', 'title', 'woeid', 'geo_is_friend',
+                'geo_is_contact', 'datetaken', 'isfriend', 'secret',
+                'ownername', 'latitude', 'longitude', 'accuracy',
+                'isfamily', 'tags', 'farm', 'geo_is_family',
+                'dateupload', 'datetakengranularity', 'server', 'context']
+        fields = list()
+        data = list()
+        for fld in flds:
+            if fld in line:
+                fields.append(fld)
+                data.append(line[fld])
+        fields = ",".join(fields)
+        dataholder = (",%s"*len(data))[1:]
+        sql = "INSERT INTO flickr_data (" + fields + ") VALUES (" + dataholder + ")"
+
+        try:
+            curs.execute(sql, data)
+            CONNECTION.commit()
+        except psycopg2.Error, err:
+            print("ERROR: {0} {1}".format(
+                err.diag.severity, err.pgerror))
+    return line['id']
+
+
 def file_to_database(filename):
     """
     take a file and push all JSON to database
@@ -275,87 +260,22 @@ def file_to_database(filename):
     print filename
     global CONNECTION
     CONNECTION = connect()
-    curs = CONNECTION.cursor()
+
     infile = open(filename, 'r')
     count = 0
     ids = set()
     inserts = 0
     for line in infile:
-        # if count > 100:
-        #     break
-        count += 1
-        if count % 10000 == 0:
-            print "Count: ", count, inserts
+        json_line = None
         try:
-            line = json.loads(line)
+            json_line = json.loads(line)
         except:
+            json_line = None
             continue
-
-        res = list([0])
-        if line['id'] not in ids:
-            sql = "SELECT COUNT(*) FROM flickr_data WHERE id=%s"
-            data = (line['id'],)
-            curs.execute(sql, data)
-            res = curs.fetchone()
-        else:
-            res = list([1])
-
-        if res[0] >= 1:
-            ids.add(line['id'])
-
-        if res[0] == 0:
-            # print line
-            flds = ['ispublic',
-                    'place_id',
-                    'geo_is_public',
-                    'owner',
-                    'id',
-                    'title',
-                    'woeid',
-                    'geo_is_friend',
-                    'geo_is_contact',
-                    'datetaken',
-                    'isfriend',
-                    'secret',
-                    'ownername',
-                    'latitude',
-                    'longitude',
-                    'accuracy',
-                    'isfamily',
-                    'tags',
-                    'farm',
-                    'geo_is_family',
-                    'dateupload',
-                    'datetakengranularity',
-                    'server',
-                    'context']
-            fields = list()
-            data = list()
-            for fld in flds:
-                if fld in line:
-                    fields.append(fld)
-                    data.append(line[fld])
-            fields = ",".join(fields)
-            dataholder = (",%s"*len(data))[1:]
-            sql = "INSERT INTO flickr_data (" + fields + ") VALUES (" + dataholder + ")"
-            # print curs.mogrify(sql, data)
-
-            try:
-                curs.execute(sql, data)
-                inserts += 1
-                CONNECTION.commit()
-                ids.add(line['id'])
-            except psycopg2.Error, err:
-                print("ERROR: {0} {1}".format(
-                    err.diag.severity, err.pgerror))
+        if json_line is not None:
+            new_id = import_line(json_line)
 
     print "Imported: ", inserts, " out of ", count
-
-if __name__ == '__main__':
-    pull_data(1, 1)
-    #
-    # for k in os.listdir("./megapull2012/"):
-    #     file_to_database("./megapull2012/" + k)
 
 
 def train_dataset():
