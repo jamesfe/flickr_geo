@@ -8,7 +8,7 @@ import datetime
 import fiona
 from shapely.geometry import Point, shape
 import pickle
-import psycopg2
+import psycopg2, psycopg2.extras
 import os
 
 ## scikitlearn stuff
@@ -136,15 +136,84 @@ def get_borough_item(json_line, borough_geoms, stopwords):
             ret_val.append(index)
             break
 
-    tags = json_line['tags'].lower()
-    if ret_val[0] < 0:
+    if len(ret_val) > 0:
+        tags = json_line['tags'].lower()
+        if ret_val[0] < 0:
+            return -1
+        elif len(tags) > 5:  # more than 5 chars
+            for sw in stopwords:
+                tags = tags.replace(sw, "")
+                json_line['tags'] = tags
+            ret_val.append(json_line)
+        return ret_val
+    else:
+        return False
+
+
+def collect_nyc_training_data(thr_vals):
+    """
+    collect a minimum of x thresholds for each borough
+    :param thr_vals:
+    :return:
+    """
+    boroughs = fiona.open('./shp/nybb_wgs84.shp', 'r')
+    geoms = list()
+    for item in boroughs:
+        shply_shape = shape(item['geometry'])
+        adder = [shply_shape, item['properties']['BoroName']]
+        geoms.append(adder)
+        print adder
+
+    if len(thr_vals) != len(geoms):
         return -1
-    elif len(tags) > 5:  # more than 5 chars
-        for sw in stopwords:
-            tags = tags.replace(sw, "")
-            json_line['tags'] = tags
-        ret_val.append(json_line)
-    return ret_val
+
+    swfile = file("./stopwords.txt", 'r')
+    stopwords = list()
+    for ln in swfile:
+        stopwords.append(ln.lower().strip())
+    swfile.close()
+
+    retvals = [list() for _ in range(0, len(thr_vals))]
+    curr_id = 0
+
+    curs = CONNECTION.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # We create a loop that watches to see if the lengths of the ret_vlas
+    # is the same as the threshold item.
+    # We get things from the database and see where they are from.
+
+    done = False
+
+    while done is False:
+        dq = [len(_) for _ in retvals]
+        print time.asctime(), dq, curr_id
+        done = True
+        for index, k in enumerate(thr_vals):
+            if k != len(retvals[index]):
+                done = False
+        sql = "SELECT * FROM flickr_data WHERE internal_id > %s " \
+              "ORDER BY internal_id ASC LIMIT 10000"
+
+        data = (curr_id, )
+        curs.execute(sql, data)
+        res = curs.fetchall()
+        if len(res) == 0:
+            print "Not enough data."
+            return retvals
+        for r in res:
+            curr_id = r['internal_id']
+            if r['latitude'] > 40:
+            # if True:
+                check_data = get_borough_item(r, geoms, stopwords)
+            else:
+                check_data = None
+            if isinstance(check_data, list):
+                cd = check_data[0]
+                if 0 <= cd < len(retvals):
+                    if len(retvals[cd]) < thr_vals[cd]:
+                        retvals[cd].append(check_data)
+
+    return retvals
 
 
 def return_borough_tags(valid_authors, in_file):
@@ -218,8 +287,6 @@ def import_line(line):
     """
     curs = CONNECTION.cursor()
 
-    res = list([0])
-
     sql = "SELECT COUNT(*) FROM flickr_data WHERE id=%s"
     data = (line['id'],)
     curs.execute(sql, data)
@@ -248,6 +315,8 @@ def import_line(line):
         except psycopg2.Error, err:
             print("ERROR: {0} {1}".format(
                 err.diag.severity, err.pgerror))
+    else:
+        return False
     return line['id']
 
 
@@ -274,6 +343,9 @@ def file_to_database(filename):
             continue
         if json_line is not None:
             new_id = import_line(json_line)
+            count += 1
+            if new_id is not False:
+                inserts += 1
 
     print "Imported: ", inserts, " out of ", count
 
@@ -376,3 +448,13 @@ def train_dataset():
     # "farm": 8, "geo_is_family": 0, "dateupload": "1416009675",
     # # "datetakengranularity": "0", "longitude": 74.005447, "server": "7477", "context": 0}
 
+
+
+if __name__ == "__main__":
+    connect()
+    thresholds = [1000 for _ in range(0, 5)]
+    print thresholds
+    ret_vals = collect_nyc_training_data(thresholds)
+    outfile = file("./nyc_trng_1000.pickle", 'w')
+    pickle.dump(ret_vals, outfile)
+    outfile.close()

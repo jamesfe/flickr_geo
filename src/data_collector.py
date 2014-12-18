@@ -8,6 +8,8 @@ import json
 import pickle
 from flickr_puller import connect, get_payload, import_line
 
+CURR_CHECKER = "./stisle_checker.pickle"
+
 
 def build_targets(inpt, num, basename):
     latdiff = inpt[0][0] - inpt[1][0]
@@ -47,7 +49,7 @@ def pull_data(minpage, minday, start_time, basepath, targets):
             md = 0
 
         for sec_time in range(md, 365):
-            checker = file("./checker.pickle", 'w')
+            checker = file(CURR_CHECKER, 'w')
             pickle.dump(dict({"sec_time": sec_time, "curr_page": curr_eval}), checker)
             checker.close()
 
@@ -85,14 +87,23 @@ def get_checker(fname):
 
 if __name__ == "__main__":
     connect()
-    pieces = 10
-    tgt_set = [dict({'coords': [[40, -78], [37, -75]], 'basename': 'dc_tgts'}),
-               dict({'coords': [[42, -75], [39, -73]], 'basename': 'ny_tgts'})]
+    pieces = 3
+    # tgt_set = [dict({'coords': [[38, -123], [37, -120]],
+    #                  'basename': 'sfo_tgts'})]
+    tgt_set = [dict({'coords': [[40.6, -74.3], [40.4, -73.9]],
+                     'basename': 'staten_isle'})]
+    # tgt_set = [dict({'coords': [[40, -78], [37, -75]], 'basename': 'dc_tgts'}),
+    #            dict({'coords': [[42, -75], [39, -73]], 'basename': 'ny_tgts'})]
     tgt_list = list()
     for i in tgt_set:
         tgt_list.extend(build_targets(i['coords'], pieces, i['basename']))
-    stime = 1325379661
-    checker = get_checker("./checker.pickle")
+    # stime = 1325379661  # 2012
+    stime = 1357002061  # 2013
 
-    pull_data(checker['curr_page'], checker['sec_time'],
-              stime, "./servicedown/", tgt_list)
+    while True:
+        try:
+            checker = get_checker(CURR_CHECKER)
+            pull_data(checker['curr_page'], checker['sec_time'],
+                      stime, "./statenisle/", tgt_list)
+        except:
+            pass

@@ -6,5 +6,6 @@ import os
 from flickr_puller import file_to_database
 
 if __name__ == "__main__":
-    for k in os.listdir("./fix_megapull_2012/"):
-        file_to_database("./fix_megapull_2012/" + k)
+    inpath = "./servicedown/"
+    for k in os.listdir(inpath):
+        file_to_database(os.path.join(inpath, k))
