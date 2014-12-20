@@ -8,7 +8,7 @@ import json
 import pickle
 from flickr_puller import connect, get_payload, import_line
 
-CURR_CHECKER = "./stisle_checker.pickle"
+CURR_CHECKER = "./multi_checker.pickle"
 
 
 def build_targets(inpt, num, basename):
@@ -91,7 +91,11 @@ if __name__ == "__main__":
     # tgt_set = [dict({'coords': [[38, -123], [37, -120]],
     #                  'basename': 'sfo_tgts'})]
     tgt_set = [dict({'coords': [[40.6, -74.3], [40.4, -73.9]],
-                     'basename': 'staten_isle'})]
+                     'basename': 'staten_isle'}),
+               dict({'coords': [[38, -123], [37, -120]],
+                     'basename': 'sfo_tgts'})]
+    # tgt_set = [dict({'coords': [[41, -74], [40.5, -73.6]],
+    #                 'basename': 'bronx'})]
     # tgt_set = [dict({'coords': [[40, -78], [37, -75]], 'basename': 'dc_tgts'}),
     #            dict({'coords': [[42, -75], [39, -73]], 'basename': 'ny_tgts'})]
     tgt_list = list()
@@ -104,6 +108,6 @@ if __name__ == "__main__":
         try:
             checker = get_checker(CURR_CHECKER)
             pull_data(checker['curr_page'], checker['sec_time'],
-                      stime, "./statenisle/", tgt_list)
+                      stime, "./bronx/", tgt_list)
         except:
             pass

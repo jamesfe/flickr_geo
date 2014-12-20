@@ -9,7 +9,7 @@ import fiona
 from shapely.geometry import Point, shape
 import pickle
 import psycopg2, psycopg2.extras
-import os
+import random
 
 ## scikitlearn stuff
 from sklearn.feature_extraction.text import CountVectorizer
@@ -138,14 +138,13 @@ def get_borough_item(json_line, borough_geoms, stopwords):
 
     if len(ret_val) > 0:
         tags = json_line['tags'].lower()
-        if ret_val[0] < 0:
-            return -1
-        elif len(tags) > 5:  # more than 5 chars
-            for sw in stopwords:
-                tags = tags.replace(sw, "")
-                json_line['tags'] = tags
-            ret_val.append(json_line)
-        return ret_val
+        # Tokenize, deduplicate, strip, restring - all one step.
+        tags = ' '.join(set([_ for _ in tags.split(" ") if len(_.strip()) > 0]))
+        for sw in stopwords:
+            tags = tags.replace(sw, "")
+        if len(tags) > 20:  # more than 20 chars
+            ret_val.append(tags)
+            return ret_val
     else:
         return False
 
@@ -191,7 +190,8 @@ def collect_nyc_training_data(thr_vals):
         for index, k in enumerate(thr_vals):
             if k != len(retvals[index]):
                 done = False
-        sql = "SELECT * FROM flickr_data WHERE internal_id > %s " \
+        sql = "SELECT id, internal_id, tags, latitude, longitude " \
+              "FROM flickr_data WHERE internal_id > %s " \
               "ORDER BY internal_id ASC LIMIT 10000"
 
         data = (curr_id, )
@@ -350,7 +350,7 @@ def file_to_database(filename):
     print "Imported: ", inserts, " out of ", count
 
 
-def train_dataset():
+def train_dataset(ret_tags):
 
     ## Below lines of code find the authors that are valid for
     ## inclusion in our training set.
@@ -362,99 +362,99 @@ def train_dataset():
     # pickle.dump(ret_tags, file("nyc_ret_tags.pickle", 'w'))
     # print "Tag Count: ", len(ret_tags)
     # exit(-1)
-
-    ret_tags = pickle.load(file('nyc_ret_tags.pickle', 'r'))
+    random.shuffle(ret_tags)
+    # ret_tags = pickle.load(file('nyc_ret_tags.pickle', 'r'))
     nyc_authors = pickle.load(file('nyc_authors.pickle', 'r'))
     boroughs = [u'Staten Island', u'Manhattan', u'Bronx', u'Brooklyn', u'Queens']
+
+    print ret_tags[0]
 
     line = int(math.floor(len(ret_tags) * .80))
     print line, len(ret_tags)
 
     all_vals = np.array([_[0] for _ in ret_tags])
-    print "All Values: ", np.histogram(all_vals, bins=[-.5, 0.5, 1.5, 2.5, 3.5, 4.5])
+    print "All Values: ", np.histogram(all_vals,
+                                       bins=[-.5, 0.5, 1.5, 2.5, 3.5, 4.5])
 
-    target_vals = [_[0] for _ in ret_tags[0:line]]
+    trng_vals = [_[0] for _ in ret_tags[0:line]]
     trng_docs = [_[1] for _ in ret_tags[0:line]]
 
     test_vals = [_[0] for _ in ret_tags[line:]]
     test_docs = [_[1] for _ in ret_tags[line:]]
 
     text_clf = Pipeline([('vect', CountVectorizer()),
-                         ('tfidf', TfidfTransformer()),
-                         ('clf', SGDClassifier(loss='hinge', penalty='l2',
-                                               alpha=1e-3, n_iter=5))])
+                         ('tfidf', TfidfTransformer(use_idf=False, norm='l1')),
+                         # ('clf', MultinomialNB())
+                         ('clf', SGDClassifier(penalty='elasticnet',
+                                               alpha=1e-06, n_iter=50))
+                        ])
     # MultinomialNB()
-    text_clf = text_clf.fit(trng_docs[:line], target_vals[:line])
 
-    predicted = text_clf.predict(test_docs)
-    print np.histogram(predicted, bins=[-.5, 0.5, 1.5, 2.5, 3.5, 4.5])
+    # Code below is for a parameter search over the pipeline:
 
-    print np.mean(predicted == test_vals)
-
-    # predicted = text_clf.predict(trng_docs[line:])
-    # print predicted.shape
-    # print np.mean(predicted == target_vals[line:len(ret_tags)])
-    #
-    # Predict some stuff and visually check it
-    # predicted = text_clf.predict(trng_docs[0:50])
-    # print np.mean(predicted == target_vals[0:50])
-    # for i in zip(predicted, trng_docs):
-    #     print i
-
-
-
-    #
     # parameters = {
     #     'vect__max_df': (0.5, 0.75, 1.0),
-    #     #'vect__max_features': (None, 5000, 10000, 50000),
+    #     # 'vect__max_features': (None, 5000, 10000, 50000),
     #     'vect__ngram_range': ((1, 1), (1, 2)),  # unigrams or bigrams
-    #     #'tfidf__use_idf': (True, False),
-    #     #'tfidf__norm': ('l1', 'l2'),
+    #     'tfidf__use_idf': (True, False),
+    #     'tfidf__norm': ('l1', 'l2'),
     #     'clf__alpha': (0.00001, 0.000001),
     #     'clf__penalty': ('l2', 'elasticnet'),
-    #     #'clf__n_iter': (10, 50, 80),
+    #     'clf__n_iter': (10, 50, 80),
     # }
-    # grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=1)
+    # grid_search = GridSearchCV(text_clf, parameters, n_jobs=-1, verbose=1)
+    #
+    # print("Performing grid search...")
+    # print("pipeline:", [name for name, _ in text_clf.steps])
+    # print("parameters:")
+    # print(parameters)
+    # t0 = time.time()
+    # grid_search.fit(trng_docs, trng_vals)
+    # print("done in %0.3fs" % (time.time() - t0))
+    # print()
+    #
+    # print("Best score: %0.3f" % grid_search.best_score_)
+    # print("Best parameters set:")
+    # best_parameters = grid_search.best_estimator_.get_params()
+    # for param_name in sorted(parameters.keys()):
+    #     print("\t%s: %r" % (param_name, best_parameters[param_name]))
 
-    # begin the learning process:
+    text_clf = text_clf.fit(trng_docs[:line], trng_vals[:line])
+
+    predicted = text_clf.predict(test_docs)
+
+    print np.histogram(predicted, bins=[-.5, 0.5, 1.5, 2.5, 3.5, 4.5])
+    print "Average prediction: ", np.mean(predicted == test_vals)
+
+    return text_clf
 
 
-
-    # pull_data()
-    # print nyc_authors
-
-    # pic_count = 0
-    # tot_count = 0
-    # for k in open(tgt_nyc_file, 'r'):
-    #     r = json.loads(k)
-    #     tot_count += 1
-    #     if r['owner'] in nyc_authors:
-    #         pic_count += 1
-    # print pic_count, tot_count
-
-
-
-    print "done"
-
-    # [1, ["nyc", "boring", "hipster"]]
-
-    ## sample
-    # {"ispublic": 1, "place_id": "5ebRtgVTUro3guGorw", "geo_is_public": 1,
-    # "owner": "72098626@N00", "id": "15604638529", "title": "Skateboard kid #8",
-    # "woeid": "20070197", "geo_is_friend": 0, "geo_is_contact": 0, "datetaken":
-    # "2014-09-28 16:02:01", "isfriend": 0, "secret": "abf65e17a8", "ownername":
-    # "Ed Yourdon", "latitude": 40.731371, "accuracy": "16", "isfamily": 0,
-    # "tags": "newyork greenwichvillage streetsofnewyork streetsofny everyblock",
-    # "farm": 8, "geo_is_family": 0, "dateupload": "1416009675",
-    # # "datetakengranularity": "0", "longitude": 74.005447, "server": "7477", "context": 0}
-
+def pickle_training_set(vals, outfile):
+    connect()
+    thresholds = [vals for _ in range(0, 5)]
+    print thresholds
+    ret_vals = collect_nyc_training_data(thresholds)
+    outfile = file(outfile, 'w')
+    pickle.dump(ret_vals, outfile)
+    outfile.close()
 
 
 if __name__ == "__main__":
-    connect()
-    thresholds = [1000 for _ in range(0, 5)]
-    print thresholds
-    ret_vals = collect_nyc_training_data(thresholds)
-    outfile = file("./nyc_trng_1000.pickle", 'w')
-    pickle.dump(ret_vals, outfile)
-    outfile.close()
+    # train_dataset()
+    # pickle_training_set(1000, "./nyc_trng_100.pickle")
+
+    nyc_trng_file = file("./nyc_trng_100.pickle", 'r')
+    nyc_trng = pickle.load(nyc_trng_file)
+    nyc_trng_file.close()
+
+    trng_vals = list()
+    for i in range(0, len(nyc_trng)):
+        for j in range(0, len(nyc_trng[i])):
+            trng_vals.append(nyc_trng[i][j])
+
+    classifier = train_dataset(trng_vals)
+
+    
+
+
+
