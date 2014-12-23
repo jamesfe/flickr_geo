@@ -8,8 +8,8 @@
 
     <style>
         #map {
-			width: 800px;
-			height: 500px;
+			width: 1600px;
+			height: 1000px;
 		}
     </style>
 
@@ -17,7 +17,7 @@
 <body>
 <div id="map"></div>
 
-<script type="text/javascript" src="./data/outfile.json"></script>
+<script type="text/javascript" src="./data/outfile_geohash6.json"></script>
 <script type="text/javascript">
 
     var map = L.map('map').setView([37.8, -96], 4);
@@ -44,10 +44,12 @@
     function style(feature) {
         return {
             fillColor: getColor(feature.properties.pred_code),
-            weight: 2,
-            opacity: 1,
+            weight:.5,
             color: 'white',
-            dashArray: '3',
+//            weight: 1,
+//            opacity: 1,
+//            color: 'white',
+//            dashArray: '3',
             fillOpacity: 0.7
         };
     }

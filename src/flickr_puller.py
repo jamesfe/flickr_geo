@@ -139,11 +139,8 @@ def get_borough_item(json_line, borough_geoms, stopwords):
             break
 
     if len(ret_val) > 0:
-        tags = json_line['tags'].lower()
-        # Tokenize, deduplicate, strip, restring - all one step.
-        tags = ' '.join(set([_ for _ in tags.split(" ") if len(_.strip()) > 0]))
-        for sw in stopwords:
-            tags = tags.replace(sw, "")
+        tags = clean_tags(json_line['tags'], stopwords)
+
         if len(tags) > 20:  # more than 20 chars
             ret_val.append(tags)
             return ret_val
@@ -441,6 +438,25 @@ def pickle_training_set(vals, outfile):
     outfile.close()
 
 
+def clean_tags(in_string, stopwords):
+    """
+    take an instring
+    tokenize
+    clean with stopwords
+    return string
+    :param in_string:
+    :return:
+    """
+    tags = in_string.lower()
+    # Tokenize, deduplicate, strip, restring - all one step.
+    tags = set([_ for _ in tags.split(" ") if len(_.strip()) > 0])
+    ret_val = list()
+    for tag in tags:
+        if tag not in stopwords:
+            ret_val.append(tag)
+    return ' '.join(ret_val)
+
+
 def classify_database(clsfy, classrun, notes, num):
     """
     run this classifier and throw some notes in the database -
@@ -467,6 +483,8 @@ def classify_database(clsfy, classrun, notes, num):
         count += 1
         if (count % 1000) == 0:
             print time.asctime(), count
+        tags = r[3]
+        tags = clean_tags(tags)
         prediction = int(clsfy.predict([r[3]]))
         sql = "INSERT INTO classifications " \
               "(pred_code, fl_internal_id, notes, " \
@@ -562,15 +580,17 @@ def train_to_database():
 
     classifier = train_dataset(trng_vals)
 
-    classify_database(classifier, 1, "test", 480000)
+    classify_database(classifier, 2, "new stopwords", 480000)
 
 
 if __name__ == "__main__":
-    # train_dataset()
-    # pickle_training_set(1000, "./nyc_trng_100.pickle")
+    pickle_training_set(1000, "./nyc_trng_100.pickle")
 
-    ofile = file("./webapp/data/outfile.json", 'w')
-    rvals = geohash_to_polygons(1, 400000, 7)
+    train_to_database()
+    print "Done classifying, outputting... "
+
+    ofile = file("./webapp/data/outfile_geohash6.json", 'w')
+    rvals = geohash_to_polygons(1, 480000, 6)
     ofile.write("var inData =")
     ofile.write(json.dumps(rvals))
     ofile.write(";\n")

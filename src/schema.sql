@@ -1,30 +1,54 @@
+-- Table: flickr_data
 
-CREATE SEQUENCE id_seq;
+-- DROP TABLE flickr_data;
 
- CREATE TABLE IF NOT EXISTS flickr_data (
- 	ispublic INT,
- 	place_id VARCHAR,
- 	geo_is_public INT,
- 	owner VARCHAR,
- 	id VARCHAR, 
- 	title TEXT,
- 	woeid VARCHAR,
- 	geo_is_friend INT,
- 	geo_is_contact INT,
- 	datetaken VARCHAR,
- 	isfriend INT,
- 	secret VARCHAR,
- 	ownername VARCHAR,
- 	latitude FLOAT,
- 	longitude FLOAT,
- 	accuracy VARCHAR,
- 	isfamily INT,
- 	tags TEXT,
- 	farm INT,
- 	geo_is_family INT,
- 	dateupload VARCHAR,
- 	datetakengranularity INT,
- 	server VARCHAR,
- 	context	INT
- 	"id" integer PRIMARY KEY default nextval('id_seq')
- 	);
+CREATE TABLE flickr_data
+(
+  ispublic integer,
+  place_id character varying,
+  geo_is_public integer,
+  owner character varying,
+  id character varying,
+  title text,
+  woeid character varying,
+  geo_is_friend integer,
+  geo_is_contact integer,
+  datetaken character varying,
+  isfriend integer,
+  secret character varying,
+  ownername character varying,
+  latitude double precision,
+  longitude double precision,
+  accuracy character varying,
+  isfamily integer,
+  tags text,
+  farm integer,
+  geo_is_family integer,
+  dateupload character varying,
+  datetakengranularity integer,
+  server character varying,
+  context integer,
+  internal_id integer NOT NULL DEFAULT nextval('id_seq'::regclass),
+  CONSTRAINT flickr_data_pkey PRIMARY KEY (internal_id)
+)
+WITH (
+  OIDS=FALSE
+);
+ALTER TABLE flickr_data
+  OWNER TO jimmy1;
+
+
+CREATE sequence class_seq;
+
+drop table classifications;
+
+CREATE TABLE IF NOT EXISTS classifications (
+ 	pred_code INTEGER,
+ 	fl_internal_id INTEGER,
+ 	notes TEXT,
+ 	classrun INTEGER,
+ 	latitude double precision,
+ 	longitude double precision,
+ 	id integer  NOT NULL DEFAULT nextval('class_seq'::regclass),
+ 	CONSTRAINT classifications_pkey PRIMARY KEY (id)
+)

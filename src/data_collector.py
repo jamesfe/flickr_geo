@@ -12,13 +12,19 @@ CURR_CHECKER = "./multi_checker.pickle"
 
 
 def build_targets(inpt, num, basename):
-    latdiff = inpt[0][0] - inpt[1][0]
-    londiff = inpt[0][1] - inpt[1][1]
+    lats = list(inpt[0][0], inpt[1][0])
+    lons = list(inpt[0][1], inpt[1][1])
+    maxlat = max(lats)
+    minlat = min(lats)
+    maxlon = max(lons)
+    minlon = min(lons)
+    latdiff = maxlat - minlat
+    londiff = maxlon - minlon
     retvals = list()
     for latval in range(0, num):
         for lonval in range(0, num):
-            newlat = inpt[0][0] + (latdiff / num) * latval
-            newlon = inpt[0][1] + (londiff / num) * lonval
+            newlat = minlat + (latdiff / num) * latval
+            newlon = minlon + (londiff / num) * lonval
             fname = basename + "_" + str(latval) + "_" + str(lonval) + ".json"
             r = dict({'lat': newlat, 'lon': newlon, 'fname': fname})
             retvals.append(r)
