@@ -21,6 +21,8 @@ from sklearn.pipeline import Pipeline
 import numpy as np
 import math
 
+from geohash import encode, bbox
+
 API_KEY = open("api_key.txt", 'r').read().strip()
 NY_LAT = 40.69
 NY_LON = -74.00
@@ -439,22 +441,144 @@ def pickle_training_set(vals, outfile):
     outfile.close()
 
 
-if __name__ == "__main__":
-    # train_dataset()
-    # pickle_training_set(1000, "./nyc_trng_100.pickle")
+def classify_database(clsfy, classrun, notes, num):
+    """
+    run this classifier and throw some notes in the database -
+    :param clsfy: scikit learn classifier (trained)
+    :param classrun: a number, preferably uniqueish
+    :param notes: notes about the classifier
+    :param num: number of records to do (-1 for all)
+    :return:
+    """
+    connect()
+    curs = CONNECTION.cursor()
 
+    if num < 0:
+        num = " LIMIT ALL"
+    else:
+        num = " LIMIT " + str(num)
+
+    sql = "SELECT internal_id, latitude, longitude, tags FROM flickr_data" + num
+    curs.execute(sql)
+    res = curs.fetchall()
+
+    count = 0
+    for r in res:
+        count += 1
+        if (count % 1000) == 0:
+            print time.asctime(), count
+        prediction = int(clsfy.predict([r[3]]))
+        sql = "INSERT INTO classifications " \
+              "(pred_code, fl_internal_id, notes, " \
+              "classrun, latitude, longitude) " \
+              "VALUES (%s, %s, %s, %s, %s, %s)"
+        data = (prediction, r[0], notes, classrun, r[1], r[2])
+        try:
+            curs.execute(sql, data)
+            CONNECTION.commit()
+        except Exception as err:
+            print curs.mogrify(sql, data)
+            print "Exception of type : " + str(type(err))\
+                  + ".  Rolling back..." + str(err)
+    ## pick the data, then add to another DB row
+
+
+def geohash_to_polygons(classrun, num, accuracy=8):
+    """
+    turn a class run into a JSON file for leaflet to interpret
+    :param classrun:
+    :return:
+    """
+    connect()
+    sql = "SELECT pred_code, latitude, longitude " \
+          "FROM classifications WHERE classrun=%s LIMIT %s"
+    data = (classrun, num)
+    curs = CONNECTION.cursor()
+    curs.execute(sql, data)
+    results = curs.fetchall()
+
+    geohashes = dict()
+    for res in results:
+        lat = res[1]
+        lon = res[2]
+        code = res[0]
+        geo_hsh = encode(lat, lon, accuracy)
+        if geo_hsh in geohashes:
+            if code in geohashes[geo_hsh]:
+                geohashes[geo_hsh][code] += 1
+            else:
+                geohashes[geo_hsh][code] = 1
+        else:
+            geohashes[geo_hsh] = dict()
+            geohashes[geo_hsh][code] = 1
+
+    geojson_obj = list()
+
+    for res in geohashes:
+        new_obj = dict({"type": "Feature",
+                        "id": res,
+                        "geometry": dict(),
+                        "properties": dict()})
+        val = max(geohashes[res])
+        new_obj['properties']['pred_code'] = val
+        poly = list()
+        ghbox = bbox(res)
+        poly.append([ghbox['w'], ghbox['n']])
+        poly.append([ghbox['w'], ghbox['s']])
+        poly.append([ghbox['e'], ghbox['s']])
+        poly.append([ghbox['e'], ghbox['n']])
+        new_obj['geometry']['coordinates'] = [poly]
+        new_obj['geometry']['type'] = "Polygon"
+        geojson_obj.append(new_obj)
+
+    ret_vals = dict({"type": "FeatureCollection",
+                     "features": geojson_obj})
+
+    return ret_vals
+
+   #  { "type": "Polygon",
+   #  "coordinates": [
+   #    [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ],
+   #    [ [100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2] ]
+   #    ]
+   # }
+
+
+def train_to_database():
+    """
+    train the classifier, then do a bunch of values
+
+    :return:
+    """
     nyc_trng_file = file("./nyc_trng_100.pickle", 'r')
     nyc_trng = pickle.load(nyc_trng_file)
     nyc_trng_file.close()
 
     trng_vals = list()
     for i in range(0, len(nyc_trng)):
+        print "Row ", i, ": ", len(nyc_trng[i])
         for j in range(0, len(nyc_trng[i])):
             trng_vals.append(nyc_trng[i][j])
 
     classifier = train_dataset(trng_vals)
 
-    
+    classify_database(classifier, 1, "test", 480000)
+
+
+if __name__ == "__main__":
+    # train_dataset()
+    # pickle_training_set(1000, "./nyc_trng_100.pickle")
+
+    ofile = file("./webapp/data/outfile.json", 'w')
+    rvals = geohash_to_polygons(1, 400000, 7)
+    ofile.write("var inData =")
+    ofile.write(json.dumps(rvals))
+    ofile.write(";\n")
+    ofile.close()
+    print "done"
+
+    # rvals = geohash_to_polygons(1, 10, 8)
+
 
 
 
