@@ -25,3 +25,14 @@ atlanticyards
 atlanticavenue
 6thavenue
 forestcityratner
+newyorkcity
+flickrandroidapp:filter=none
+uploaded:by=instagram
+squareformat
+square
+iphoneography
+uploaded
+instagram
+foursquare
+venue
+instagramapp

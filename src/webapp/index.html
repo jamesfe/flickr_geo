@@ -31,12 +31,8 @@
     }).addTo(map);
 
     function getColor(d) {
-        var rv = {0: "#dfc27d",
-            1: "#a6611a",
-            2: "#f5f5f5",
-            3: "#80cdc1",
-            4: "#018571"
-        };
+        var rv = {0: '#7fc97f', 1: '#beaed4',
+            2: '#fdc086', 3: '#ffff99', 4: '#386cb0'};
         return rv[d];
 
     };
@@ -44,13 +40,14 @@
     function style(feature) {
         return {
             fillColor: getColor(feature.properties.pred_code),
-            weight:.5,
+            weight: 1,
             color: 'white',
 //            weight: 1,
 //            opacity: 1,
 //            color: 'white',
 //            dashArray: '3',
-            fillOpacity: 0.7
+            fillOpacity: 0.7,
+            opacity: 0.2
         };
     }
 

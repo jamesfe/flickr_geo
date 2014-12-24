@@ -15,8 +15,6 @@ import random
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.linear_model import SGDClassifier
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.grid_search import GridSearchCV
 from sklearn.pipeline import Pipeline
 import numpy as np
 import math
@@ -35,7 +33,7 @@ STISL_LON = -74.14
 STISL_LAT = 40.58
 
 
-def get_payload(city_lat, city_lon, c_page, min_date):
+def get_payload(city_lat, city_lon, c_page, min_date=None):
     """
     Get a number of photos within 32km of a point.
     :param city_lat: latitude in DD
@@ -49,15 +47,17 @@ def get_payload(city_lat, city_lon, c_page, min_date):
                "accuracy": 8,
                "lat": city_lat,
                "lon": city_lon,
-               "radius": 32,
+               "radius": 30,
                "extras": "date_upload,date_taken,owner_name,geo,tags",
                "per_page": 250,
-               "min_upload_date": min_date,
-               "max_upload_date": min_date+86400,
                "format": "json",
                "nojsoncallback": 1,
                "page": c_page,
                "api_key": API_KEY}
+    if isinstance(min_date, int):
+        payload["min_upload_date"] = min_date
+        payload["max_upload_date"] = min_date+86400
+
     flickr_req = requests.get("https://api.flickr.com/services/rest/",
                               params=payload)
     photo_list = json.loads(flickr_req.text)
@@ -148,7 +148,7 @@ def get_borough_item(json_line, borough_geoms, stopwords):
         return False
 
 
-def collect_nyc_training_data(thr_vals):
+def collect_nyc_training_data(thr_vals, look_box=None):
     """
     collect a minimum of x thresholds for each borough
     :param thr_vals:
@@ -181,6 +181,7 @@ def collect_nyc_training_data(thr_vals):
     # We get things from the database and see where they are from.
 
     done = False
+    num_pull = len(thr_vals[0]) * 10
 
     while done is False:
         dq = [len(_) for _ in retvals]
@@ -192,8 +193,16 @@ def collect_nyc_training_data(thr_vals):
         sql = "SELECT id, internal_id, tags, latitude, longitude " \
               "FROM flickr_data WHERE internal_id > %s " \
               "ORDER BY internal_id ASC LIMIT 10000"
-
-        data = (curr_id, )
+        if look_box is not None:
+            sql = "SELECT id, internal_id, tags, latitude, longitude " \
+                  "FROM flickr_data WHERE internal_id > %s " \
+                  "AND latitude < %s " \
+                  "AND latitude > %s " \
+                  "AND longitude < %s" \
+                  "AND longitude > %s" \
+                  "ORDER BY internal_id ASC LIMIT %s"
+        data = (curr_id, look_box['top'], look_box['bottom'],
+                look_box['left'], look_box['right'], num_pull)
         curs.execute(sql, data)
         res = curs.fetchall()
         if len(res) == 0:
@@ -202,7 +211,6 @@ def collect_nyc_training_data(thr_vals):
         for r in res:
             curr_id = r['internal_id']
             if r['latitude'] > 40:
-            # if True:
                 check_data = get_borough_item(r, geoms, stopwords)
             else:
                 check_data = None
@@ -350,19 +358,7 @@ def file_to_database(filename):
 
 
 def train_dataset(ret_tags):
-
-    ## Below lines of code find the authors that are valid for
-    ## inclusion in our training set.
-    # tgt_nyc_file = "nyc_json.json"
-    # nyc_authors = multi_day_authors(tgt_nyc_file, 5)
-    # print "Authors: ", len(nyc_authors)
-    # pickle.dump(nyc_authors, file("nyc_authors.pickle", 'w'))
-    # ret_tags = return_borough_tags(nyc_authors, tgt_nyc_file)
-    # pickle.dump(ret_tags, file("nyc_ret_tags.pickle", 'w'))
-    # print "Tag Count: ", len(ret_tags)
-    # exit(-1)
     random.shuffle(ret_tags)
-    # ret_tags = pickle.load(file('nyc_ret_tags.pickle', 'r'))
     nyc_authors = pickle.load(file('nyc_authors.pickle', 'r'))
     boroughs = [u'Staten Island', u'Manhattan', u'Bronx', u'Brooklyn', u'Queens']
 
@@ -386,37 +382,7 @@ def train_dataset(ret_tags):
                          # ('clf', MultinomialNB())
                          ('clf', SGDClassifier(penalty='elasticnet',
                                                alpha=1e-06, n_iter=50))
-                        ])
-    # MultinomialNB()
-
-    # Code below is for a parameter search over the pipeline:
-
-    # parameters = {
-    #     'vect__max_df': (0.5, 0.75, 1.0),
-    #     # 'vect__max_features': (None, 5000, 10000, 50000),
-    #     'vect__ngram_range': ((1, 1), (1, 2)),  # unigrams or bigrams
-    #     'tfidf__use_idf': (True, False),
-    #     'tfidf__norm': ('l1', 'l2'),
-    #     'clf__alpha': (0.00001, 0.000001),
-    #     'clf__penalty': ('l2', 'elasticnet'),
-    #     'clf__n_iter': (10, 50, 80),
-    # }
-    # grid_search = GridSearchCV(text_clf, parameters, n_jobs=-1, verbose=1)
-    #
-    # print("Performing grid search...")
-    # print("pipeline:", [name for name, _ in text_clf.steps])
-    # print("parameters:")
-    # print(parameters)
-    # t0 = time.time()
-    # grid_search.fit(trng_docs, trng_vals)
-    # print("done in %0.3fs" % (time.time() - t0))
-    # print()
-    #
-    # print("Best score: %0.3f" % grid_search.best_score_)
-    # print("Best parameters set:")
-    # best_parameters = grid_search.best_estimator_.get_params()
-    # for param_name in sorted(parameters.keys()):
-    #     print("\t%s: %r" % (param_name, best_parameters[param_name]))
+    ])
 
     text_clf = text_clf.fit(trng_docs[:line], trng_vals[:line])
 
@@ -432,7 +398,13 @@ def pickle_training_set(vals, outfile):
     connect()
     thresholds = [vals for _ in range(0, 5)]
     print thresholds
-    ret_vals = collect_nyc_training_data(thresholds)
+    look_box = dict({
+        "top": 42,
+        "bottom": 40,
+        "left": -74,
+        "right": -72})
+
+    ret_vals = collect_nyc_training_data(thresholds, look_box)
     outfile = file(outfile, 'w')
     pickle.dump(ret_vals, outfile)
     outfile.close()
@@ -452,7 +424,7 @@ def clean_tags(in_string, stopwords):
     tags = set([_ for _ in tags.split(" ") if len(_.strip()) > 0])
     ret_val = list()
     for tag in tags:
-        if tag not in stopwords:
+        if tag not in stopwords and tag.find("foursquare") == -1:
             ret_val.append(tag)
     return ' '.join(ret_val)
 
@@ -469,6 +441,12 @@ def classify_database(clsfy, classrun, notes, num):
     connect()
     curs = CONNECTION.cursor()
 
+    swfile = file("./stopwords.txt", 'r')
+    stopwords = list()
+    for ln in swfile:
+        stopwords.append(ln.lower().strip())
+    swfile.close()
+
     if num < 0:
         num = " LIMIT ALL"
     else:
@@ -484,8 +462,8 @@ def classify_database(clsfy, classrun, notes, num):
         if (count % 1000) == 0:
             print time.asctime(), count
         tags = r[3]
-        tags = clean_tags(tags)
-        prediction = int(clsfy.predict([r[3]]))
+        tags = clean_tags(tags, stopwords)
+        prediction = int(clsfy.predict([r[3]])[0]) # this might be an issue
         sql = "INSERT INTO classifications " \
               "(pred_code, fl_internal_id, notes, " \
               "classrun, latitude, longitude) " \
@@ -496,9 +474,9 @@ def classify_database(clsfy, classrun, notes, num):
             CONNECTION.commit()
         except Exception as err:
             print curs.mogrify(sql, data)
-            print "Exception of type : " + str(type(err))\
+            print "Exception of type : " + str(type(err)) \
                   + ".  Rolling back..." + str(err)
-    ## pick the data, then add to another DB row
+            ## pick the data, then add to another DB row
 
 
 def geohash_to_polygons(classrun, num, accuracy=8):
@@ -554,13 +532,6 @@ def geohash_to_polygons(classrun, num, accuracy=8):
 
     return ret_vals
 
-   #  { "type": "Polygon",
-   #  "coordinates": [
-   #    [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ],
-   #    [ [100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2] ]
-   #    ]
-   # }
-
 
 def train_to_database():
     """
@@ -580,25 +551,51 @@ def train_to_database():
 
     classifier = train_dataset(trng_vals)
 
-    classify_database(classifier, 2, "new stopwords", 480000)
+    classify_database(classifier, 3, "3000 data points each", 550000)
+
+
+def find_overlapping_tags():
+    nyc_trng_file = file("./nyc_trng_100.pickle", 'r')
+    nyc_trng = pickle.load(nyc_trng_file)
+    nyc_trng_file.close()
+
+    trng_vals = list()
+
+    for i in range(0, len(nyc_trng)):
+        print "Row ", i, ": ", len(nyc_trng[i])
+        for j in range(0, len(nyc_trng[i])):
+            trng_vals.append(nyc_trng[i][j])
+
+    classifier = train_dataset(trng_vals)
+    stopwords = get_stopwords()
+
+    for i in trng_vals:
+        in_tags = [clean_tags(i[1], stopwords)]
+        pred = classifier.predict(in_tags)[0]
+        if pred == 1 and i[0] != 1:
+            print in_tags[0],
+
+
+def get_stopwords():
+    swfile = file("./stopwords.txt", 'r')
+    stopwords = list()
+    for ln in swfile:
+        stopwords.append(ln.lower().strip())
+    swfile.close()
+    return stopwords
 
 
 if __name__ == "__main__":
-    pickle_training_set(1000, "./nyc_trng_100.pickle")
+    # pickle_training_set(2000, "./nyc_trng_10000.pickle")
+    # train_to_database()
+    # print "Done classifying, outputting... "
 
-    train_to_database()
-    print "Done classifying, outputting... "
+    # ofile = file("./webapp/data/outfile_geohash6.json", 'w')
+    # rvals = geohash_to_polygons(1, 550000, 6)
+    # ofile.write("var inData =")
+    # ofile.write(json.dumps(rvals))
+    # ofile.write(";\n")
+    # ofile.close()
+    # print "done"
 
-    ofile = file("./webapp/data/outfile_geohash6.json", 'w')
-    rvals = geohash_to_polygons(1, 480000, 6)
-    ofile.write("var inData =")
-    ofile.write(json.dumps(rvals))
-    ofile.write(";\n")
-    ofile.close()
-    print "done"
-
-    # rvals = geohash_to_polygons(1, 10, 8)
-
-
-
-
+    find_overlapping_tags()

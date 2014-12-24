@@ -8,12 +8,12 @@ import json
 import pickle
 from flickr_puller import connect, get_payload, import_line
 
-CURR_CHECKER = "./multi_checker.pickle"
+CURR_CHECKER = "./sf_checker.pickle"
 
 
 def build_targets(inpt, num, basename):
-    lats = list(inpt[0][0], inpt[1][0])
-    lons = list(inpt[0][1], inpt[1][1])
+    lats = list([inpt[0][0], inpt[1][0]])
+    lons = list([inpt[0][1], inpt[1][1]])
     maxlat = max(lats)
     minlat = min(lats)
     maxlon = max(lons)
@@ -65,7 +65,7 @@ def pull_data(minpage, minday, start_time, basepath, targets):
                 yearcount, totcount
             for target in targets:
                 ret_photos = get_payload(target['lat'], target['lon'],
-                                         curr_eval, dt)
+                                          curr_eval, dt)
                 for photo in ret_photos:
                     target['file'].write(json.dumps(photo) + "\n")
                     import_line(photo)
@@ -93,27 +93,48 @@ def get_checker(fname):
 
 if __name__ == "__main__":
     connect()
-    pieces = 3
+    pieces = 2
     # tgt_set = [dict({'coords': [[38, -123], [37, -120]],
     #                  'basename': 'sfo_tgts'})]
-    tgt_set = [dict({'coords': [[40.6, -74.3], [40.4, -73.9]],
-                     'basename': 'staten_isle'}),
-               dict({'coords': [[38, -123], [37, -120]],
-                     'basename': 'sfo_tgts'})]
+    # tgt_set = [dict({'coords': [[40.6, -74.3], [40.4, -73.9]],
+    #                  'basename': 'staten_isle'}),
+
+    # global CURR_CHECKER
+    # CURR_CHECKER = "./sf_checker.pickle"
+    # tgt_set = [dict({'coords': [[38, -123], [37, -120]],
+    #                  'basename': 'sfo_tgts'})]
+
+    ## hampton_roads.pickle
+    # tgt_set = [dict({'coords': [[37.91, -77.81], [35.8, -75.40]],
+    #                  'basename': 'hampton_rds'})]
+
+    ## bronx_checker.pickle
     # tgt_set = [dict({'coords': [[41, -74], [40.5, -73.6]],
     #                 'basename': 'bronx'})]
-    # tgt_set = [dict({'coords': [[40, -78], [37, -75]], 'basename': 'dc_tgts'}),
-    #            dict({'coords': [[42, -75], [39, -73]], 'basename': 'ny_tgts'})]
+
+    # global CURR_CHECKER
+    # CURR_CHECKER = "./dctgts_checker.pickle"
+    # tgt_set = [dict({'coords': [[40, -78], [37, -75]], 'basename': 'dc_tgts_2010'}),
+    #            dict({'coords': [[42, -75], [39, -73]], 'basename': 'ny_tgts_2010'})]
+
+    global CURR_CHECKER
+    CURR_CHECKER = "./stisle_2010_checker.pickle"
+    tgt_set = [dict({'coords': [[40.6, -74.3], [40.4, -73.9]],
+                     'basename': 'staten_isle'})]
+
     tgt_list = list()
     for i in tgt_set:
         tgt_list.extend(build_targets(i['coords'], pieces, i['basename']))
     # stime = 1325379661  # 2012
-    stime = 1357002061  # 2013
+    # stime = 1357002061  # 2013
+    stime = 1262307661  # 2010
+
+    print tgt_set
 
     while True:
         try:
             checker = get_checker(CURR_CHECKER)
             pull_data(checker['curr_page'], checker['sec_time'],
-                      stime, "./bronx/", tgt_list)
+                      stime, "./sfo/", tgt_list)
         except:
             pass
