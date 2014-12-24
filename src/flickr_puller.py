@@ -42,7 +42,7 @@ def get_payload(city_lat, city_lon, c_page, min_date=None):
     :return:
     """
     start = time.time()
-    threshold = 1.1  # number of seconds we want a call to take
+    threshold = 3  # number of seconds we want a call to take
     payload = {"method": "flickr.photos.search",
                "accuracy": 8,
                "lat": city_lat,
@@ -139,7 +139,8 @@ def get_borough_item(json_line, borough_geoms, stopwords):
             break
 
     if len(ret_val) > 0:
-        tags = clean_tags(json_line['tags'], stopwords)
+        tags = json_line['tags'] + " " + json_line['title']
+        tags = clean_tags(tags, stopwords)
 
         if len(tags) > 20:  # more than 20 chars
             ret_val.append(tags)
@@ -160,6 +161,7 @@ def collect_nyc_training_data(thr_vals, look_box=None):
         shply_shape = shape(item['geometry'])
         adder = [shply_shape, item['properties']['BoroName']]
         geoms.append(adder)
+        # Maybe I should simplify this polygon a bit?
         print adder
 
     if len(thr_vals) != len(geoms):
@@ -181,7 +183,12 @@ def collect_nyc_training_data(thr_vals, look_box=None):
     # We get things from the database and see where they are from.
 
     done = False
-    num_pull = len(thr_vals[0]) * 10
+    num_pull = thr_vals[0] * 10
+
+    max_lat = max([look_box['top'], look_box['bottom']])
+    max_lon = max([look_box['left'], look_box['right']])
+    min_lat = min([look_box['top'], look_box['bottom']])
+    min_lon = min([look_box['left'], look_box['right']])
 
     while done is False:
         dq = [len(_) for _ in retvals]
@@ -190,30 +197,28 @@ def collect_nyc_training_data(thr_vals, look_box=None):
         for index, k in enumerate(thr_vals):
             if k != len(retvals[index]):
                 done = False
-        sql = "SELECT id, internal_id, tags, latitude, longitude " \
+        sql = "SELECT id, internal_id, tags, latitude, longitude, title " \
               "FROM flickr_data WHERE internal_id > %s " \
               "ORDER BY internal_id ASC LIMIT 10000"
         if look_box is not None:
-            sql = "SELECT id, internal_id, tags, latitude, longitude " \
+            sql = "SELECT id, internal_id, tags, latitude, longitude, title " \
                   "FROM flickr_data WHERE internal_id > %s " \
                   "AND latitude < %s " \
                   "AND latitude > %s " \
-                  "AND longitude < %s" \
-                  "AND longitude > %s" \
+                  "AND longitude < %s " \
+                  "AND longitude > %s " \
                   "ORDER BY internal_id ASC LIMIT %s"
-        data = (curr_id, look_box['top'], look_box['bottom'],
-                look_box['left'], look_box['right'], num_pull)
+        data = (curr_id, max_lat, min_lat,
+                max_lon, min_lon, num_pull)
         curs.execute(sql, data)
+        print curs.mogrify(sql, data)
         res = curs.fetchall()
         if len(res) == 0:
             print "Not enough data."
             return retvals
         for r in res:
             curr_id = r['internal_id']
-            if r['latitude'] > 40:
-                check_data = get_borough_item(r, geoms, stopwords)
-            else:
-                check_data = None
+            check_data = get_borough_item(r, geoms, stopwords)
             if isinstance(check_data, list):
                 cd = check_data[0]
                 if 0 <= cd < len(retvals):
@@ -399,10 +404,10 @@ def pickle_training_set(vals, outfile):
     thresholds = [vals for _ in range(0, 5)]
     print thresholds
     look_box = dict({
-        "top": 42,
-        "bottom": 40,
-        "left": -74,
-        "right": -72})
+        "top": 41,
+        "bottom": 40.4,
+        "left": -74.5,
+        "right": -73.6})
 
     ret_vals = collect_nyc_training_data(thresholds, look_box)
     outfile = file(outfile, 'w')
@@ -452,7 +457,8 @@ def classify_database(clsfy, classrun, notes, num):
     else:
         num = " LIMIT " + str(num)
 
-    sql = "SELECT internal_id, latitude, longitude, tags FROM flickr_data" + num
+    sql = "SELECT internal_id, latitude, longitude, tags, title " \
+          "FROM flickr_data" + num
     curs.execute(sql)
     res = curs.fetchall()
 
@@ -461,9 +467,9 @@ def classify_database(clsfy, classrun, notes, num):
         count += 1
         if (count % 1000) == 0:
             print time.asctime(), count
-        tags = r[3]
+        tags = r[3] + " " + r[4]
         tags = clean_tags(tags, stopwords)
-        prediction = int(clsfy.predict([r[3]])[0]) # this might be an issue
+        prediction = int(clsfy.predict([tags])[0]) # this might be an issue
         sql = "INSERT INTO classifications " \
               "(pred_code, fl_internal_id, notes, " \
               "classrun, latitude, longitude) " \
@@ -533,7 +539,7 @@ def geohash_to_polygons(classrun, num, accuracy=8):
     return ret_vals
 
 
-def train_to_database():
+def train_to_database(num_trng):
     """
     train the classifier, then do a bunch of values
 
@@ -551,7 +557,7 @@ def train_to_database():
 
     classifier = train_dataset(trng_vals)
 
-    classify_database(classifier, 3, "3000 data points each", 550000)
+    classify_database(classifier, 3, "3000 data points each", num_trng)
 
 
 def find_overlapping_tags():
@@ -586,16 +592,16 @@ def get_stopwords():
 
 
 if __name__ == "__main__":
-    # pickle_training_set(2000, "./nyc_trng_10000.pickle")
-    # train_to_database()
+    pickle_training_set(5000, "./nyc_trng_5000.pickle")
+    # train_to_database(593146)
     # print "Done classifying, outputting... "
-
+    #
     # ofile = file("./webapp/data/outfile_geohash6.json", 'w')
-    # rvals = geohash_to_polygons(1, 550000, 6)
+    # rvals = geohash_to_polygons(1, 593146, 6)
     # ofile.write("var inData =")
     # ofile.write(json.dumps(rvals))
     # ofile.write(";\n")
     # ofile.close()
     # print "done"
-
-    find_overlapping_tags()
+    #
+    # find_overlapping_tags()

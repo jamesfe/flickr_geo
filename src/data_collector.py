@@ -8,8 +8,6 @@ import json
 import pickle
 from flickr_puller import connect, get_payload, import_line
 
-CURR_CHECKER = "./sf_checker.pickle"
-
 
 def build_targets(inpt, num, basename):
     lats = list([inpt[0][0], inpt[1][0]])
@@ -99,12 +97,13 @@ if __name__ == "__main__":
     # tgt_set = [dict({'coords': [[40.6, -74.3], [40.4, -73.9]],
     #                  'basename': 'staten_isle'}),
 
-    # global CURR_CHECKER
-    # CURR_CHECKER = "./sf_checker.pickle"
-    # tgt_set = [dict({'coords': [[38, -123], [37, -120]],
-    #                  'basename': 'sfo_tgts'})]
+    global CURR_CHECKER
+    CURR_CHECKER = "./sf_checker.pickle"
+    tgt_set = [dict({'coords': [[38, -123], [37, -120]],
+                     'basename': 'sfo_tgts'})]
 
-    ## hampton_roads.pickle
+    # global CURR_CHECKER
+    # CURR_CHECKER = "./hampton_roads.pickle"
     # tgt_set = [dict({'coords': [[37.91, -77.81], [35.8, -75.40]],
     #                  'basename': 'hampton_rds'})]
 
@@ -138,3 +137,7 @@ if __name__ == "__main__":
                       stime, "./sfo/", tgt_list)
         except:
             pass
+
+
+# TODO: Make this a class, instantiate the class,
+# which will fork off and use its own API Key.
