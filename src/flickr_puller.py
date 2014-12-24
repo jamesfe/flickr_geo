@@ -20,6 +20,7 @@ import numpy as np
 import math
 
 from geohash import encode, bbox
+from operator import itemgetter
 
 API_KEY = open("api_key.txt", 'r').read().strip()
 NY_LAT = 40.69
@@ -424,13 +425,16 @@ def clean_tags(in_string, stopwords):
     :param in_string:
     :return:
     """
+    findwords = list("foursquare", "uploaded", "nofilter")
     tags = in_string.lower()
     # Tokenize, deduplicate, strip, restring - all one step.
     tags = set([_ for _ in tags.split(" ") if len(_.strip()) > 0])
     ret_val = list()
     for tag in tags:
-        if tag not in stopwords and tag.find("foursquare") == -1:
-            ret_val.append(tag)
+        if tag not in stopwords:
+            for item in findwords:
+                if tag.find(item) == -1:
+                    ret_val.append(tag)
     return ' '.join(ret_val)
 
 
@@ -465,7 +469,7 @@ def classify_database(clsfy, classrun, notes, num):
     count = 0
     for r in res:
         count += 1
-        if (count % 1000) == 0:
+        if (count % 10000) == 0:
             print time.asctime(), count
         tags = r[3] + " " + r[4]
         tags = clean_tags(tags, stopwords)
@@ -521,7 +525,12 @@ def geohash_to_polygons(classrun, num, accuracy=8):
                         "id": res,
                         "geometry": dict(),
                         "properties": dict()})
-        val = max(geohashes[res])
+        # val = max(geohashes[res])
+
+        val = sorted(geohashes[res].items(),
+                     key=itemgetter(1), reverse=True)[0][0]
+
+        # print val, geohashes[res]
         new_obj['properties']['pred_code'] = val
         poly = list()
         ghbox = bbox(res)
@@ -578,7 +587,7 @@ def find_overlapping_tags():
     for i in trng_vals:
         in_tags = [clean_tags(i[1], stopwords)]
         pred = classifier.predict(in_tags)[0]
-        if pred == 1 and i[0] != 1:
+        if i[0] != pred:
             print in_tags[0],
 
 
@@ -591,17 +600,36 @@ def get_stopwords():
     return stopwords
 
 
+def getwords(tgt):
+    """
+    get a pile of words for analysis
+    :param tgt:
+    :return:
+    """
+    sw = get_stopwords()
+
+    nyc_trng_file = file("./nyc_trng_100.pickle", 'r')
+    nyc_trng = pickle.load(nyc_trng_file)
+    nyc_trng_file.close()
+
+    wordlist = ' '
+    for i in nyc_trng[tgt]:
+        tags = clean_tags(i[1], sw)
+        wordlist += tags
+    print wordlist
+
 if __name__ == "__main__":
-    pickle_training_set(5000, "./nyc_trng_5000.pickle")
-    # train_to_database(593146)
+    # pickle_training_set(5000, "./nyc_trng_4000.pickle")
+    # train_to_database(600000)
     # print "Done classifying, outputting... "
     #
-    # ofile = file("./webapp/data/outfile_geohash6.json", 'w')
-    # rvals = geohash_to_polygons(1, 593146, 6)
-    # ofile.write("var inData =")
-    # ofile.write(json.dumps(rvals))
-    # ofile.write(";\n")
-    # ofile.close()
-    # print "done"
-    #
+    hashlen = 6
+    ofile = file("./webapp/data/outfile_geohash"+str(hashlen)+".json", 'w')
+    rvals = geohash_to_polygons(1, 600000, hashlen)
+    ofile.write("var inData =")
+    ofile.write(json.dumps(rvals))
+    ofile.write(";\n")
+    ofile.close()
+    print "done"
+
     # find_overlapping_tags()

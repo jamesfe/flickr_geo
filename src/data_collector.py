@@ -59,17 +59,18 @@ def pull_data(minpage, minday, start_time, basepath, targets):
 
             yearcount = 0
             dt = base_time + (sec_time * 86400)
-            print time.asctime(), "Day of Year: ", sec_time, " Photos: ", \
-                yearcount, totcount
+
             for target in targets:
                 ret_photos = get_payload(target['lat'], target['lon'],
-                                          curr_eval, dt)
+                                         curr_eval, dt)
                 for photo in ret_photos:
                     target['file'].write(json.dumps(photo) + "\n")
-                    import_line(photo)
-                    yearcount += 1
-                    totcount += 1
-            print yearcount, totcount
+                    r = import_line(photo)
+                    if r is not False:
+                        yearcount += 1
+                        totcount += 1
+            print time.asctime(), "Day of Year: ", sec_time, " Photos: ", \
+                yearcount, totcount
 
     for target in targets:
         target['file'].close()
@@ -136,8 +137,9 @@ if __name__ == "__main__":
             pull_data(checker['curr_page'], checker['sec_time'],
                       stime, "./sfo/", tgt_list)
         except:
+            print "Crashed!  Starting over."
             pass
 
 
-# TODO: Make this a class, instantiate the class,
-# which will fork off and use its own API Key.
+            # TODO: Make this a class, instantiate the class,
+            # which will fork off and use its own API Key.
