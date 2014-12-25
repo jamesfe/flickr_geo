@@ -21,7 +21,7 @@ class DataCollector(threading.Thread):
         self.checker = checker_name
         self.basename = basename
         self.tgt_list = build_targets([top_left, bottom_right],
-                                       numpieces, basename)
+                                      numpieces, basename)
         self.stime = int(time.mktime(start_date.timetuple()))
         self.basepath = basepath
 
@@ -79,8 +79,8 @@ class DataCollector(threading.Thread):
                         if r is not False:
                             yearcount += 1
                             totcount += 1
-                print self.basename, ": ", time.asctime(), "Day of Year: ", sec_time, " Photos: ", \
-                    yearcount, totcount
+                print time.asctime(), self.basename, ": ", "Day of Year: ", \
+                    sec_time, " Photos: ", yearcount, totcount
 
         for target in targets:
             target['file'].close()
@@ -129,37 +129,33 @@ def get_checker(fname):
 
 
 if __name__ == "__main__":
-    # connect()
-    #
-    # # tgt_set = [dict({'coords': [[38, -123], [37, -120]],
-    # #                  'basename': 'sfo_tgts'})]
-    # # tgt_set = [dict({'coords': [[40.6, -74.3], [40.4, -73.9]],
-    # #                  'basename': 'staten_isle'}),
+    connect()
 
-    # ## bronx_checker.pickle
-    # # tgt_set = [dict({'coords': [[41, -74], [40.5, -73.6]],
-    # #                 'basename': 'bronx'})]
-    #
-    # # global CURR_CHECKER
-    # # CURR_CHECKER = "./dctgts_checker.pickle"
-    # # tgt_set = [dict({'coords': [[40, -78], [37, -75]], 'basename': 'dc_tgts_2010'}),
-    # #            dict({'coords': [[42, -75], [39, -73]], 'basename': 'ny_tgts_2010'})]
-    #
-    # # global CURR_CHECKER
-    # # pieces = 2
-    # # CURR_CHECKER = "./stisle_2010_checker.pickle"
-    # # tgt_set = [dict({'coords': [[40.6, -74.3], [40.4, -73.9]],
-    # #                  'basename': 'staten_isle'})]
-    #
+    colls = list()
 
-    dc = DataCollector("./sf_checker_2011.pickle", "sfo", "sfo_tgts_test",
-                       [38, -123], [37, -120],
-                       5, dt.datetime(2011, 1, 1))
+    colls.append(DataCollector("./checkers/nyc_2014.pickle", "./data/nyc/", "nyc",
+                               [42, -75], [40, -72],
+                               10, dt.datetime(2014, 1, 1)))
 
-    hr = DataCollector("./hampton_roads.pickle", "hroads", "hr_data",
-                       [37.91, -77.81], [35.8, -75.40],
-                       10, dt.datetime(2010, 1, 1))
+    colls.append(DataCollector("./checkers/bigdc_2014.pickle", "./data/wdc/", "wdc",
+                               [40, -78], [37.5, -76],
+                               10, dt.datetime(2014, 1, 1)))
 
-    dc.start()
-    hr.start()
+    colls.append(DataCollector("./checkers/nyc_2013.pickle", "./data/nyc/", "nyc",
+                               [42, -75], [40, -72],
+                               10, dt.datetime(2013, 1, 1)))
 
+    colls.append(DataCollector("./checkers/bigdc_2013.pickle", "./data/wdc/", "wdc",
+                               [40, -78], [37.5, -76],
+                               10, dt.datetime(2013, 1, 1)))
+
+    colls.append(DataCollector("./checkers/sf_checker_2011.pickle", "./data/sfo", "sfo_tgts_test",
+                               [38, -123], [37, -120],
+                               5, dt.datetime(2011, 1, 1)))
+
+    colls.append(DataCollector("./checkers/hampton_roads.pickle", "./data/hroads", "hr_data",
+                               [37.91, -77.81], [35.8, -75.40],
+                               10, dt.datetime(2010, 1, 1)))
+
+    for i in colls:
+        i.start()

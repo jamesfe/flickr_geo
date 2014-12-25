@@ -110,7 +110,7 @@ def multi_day_authors(in_file, num_days):
     return valid_authors
 
 
-def get_borough_item(json_line, borough_geoms, stopwords):
+def get_borough_item(json_line, borough_geoms, stopwords, findwords):
     """
     given a line of JSON data, return the borough and JSON line, if applicable.
     If no borough, return a -1 code .
@@ -141,7 +141,7 @@ def get_borough_item(json_line, borough_geoms, stopwords):
 
     if len(ret_val) > 0:
         tags = json_line['tags'] + " " + json_line['title']
-        tags = clean_tags(tags, stopwords)
+        tags = clean_tags(tags, stopwords, findwords)
 
         if len(tags) > 20:  # more than 20 chars
             ret_val.append(tags)
@@ -161,11 +161,8 @@ def gather_nyc_data(thr_vals, class_notes, outfile):
     curs = CONNECTION.cursor(cursor_factory=psycopg2.extras.DictCursor)
     ret_vals = list([[] for _ in thr_vals])
 
-    swfile = file("./stopwords.txt", 'r')
-    stopwords = list()
-    for ln in swfile:
-        stopwords.append(ln.lower().strip())
-    swfile.close()
+    stopwords = get_stopwords()
+    findwords = get_findwords()
 
     for index, thr in enumerate(thr_vals):
         sql = "SELECT geo_code, tags, title FROM flickr_data fd " \
@@ -179,7 +176,7 @@ def gather_nyc_data(thr_vals, class_notes, outfile):
         res = curs.fetchall()
         for r in res:
             tags = r['tags'] + " " + r['title']
-            tags = clean_tags(tags, stopwords)
+            tags = clean_tags(tags, stopwords, findwords)
             if len(tags) > 0 and len(ret_vals[index]) < thr_vals[index]:
                 ret_vals[index].append([r['geo_code'], tags])
 
@@ -208,11 +205,8 @@ def collect_nyc_training_data(thr_vals, look_box=None):
     if len(thr_vals) != len(geoms):
         return -1
 
-    swfile = file("./stopwords.txt", 'r')
-    stopwords = list()
-    for ln in swfile:
-        stopwords.append(ln.lower().strip())
-    swfile.close()
+    stopwords = get_stopwords()
+    findwords = get_findwords()
 
     retvals = [list() for _ in range(0, len(thr_vals))]
     curr_id = 0
@@ -259,7 +253,7 @@ def collect_nyc_training_data(thr_vals, look_box=None):
             return retvals
         for r in res:
             curr_id = r['internal_id']
-            check_data = get_borough_item(r, geoms, stopwords)
+            check_data = get_borough_item(r, geoms, stopwords, findwords)
             if isinstance(check_data, list):
                 cd = check_data[0]
                 if 0 <= cd < len(retvals):
@@ -456,7 +450,7 @@ def pickle_training_set(vals, outfile):
     outfile.close()
 
 
-def clean_tags(in_string, stopwords):
+def clean_tags(in_string, stopwords, findwords):
     """
     take an instring
     tokenize
@@ -465,16 +459,22 @@ def clean_tags(in_string, stopwords):
     :param in_string:
     :return:
     """
-    findwords = list(["foursquare", "uploaded", "nofilter"])
     tags = in_string.lower()
     # Tokenize, deduplicate, strip, restring - all one step.
     tags = set([_ for _ in tags.split(" ") if len(_.strip()) > 0])
     ret_val = list()
+
     for tag in tags:
+        # print tag.find("uploaded")
         if tag not in stopwords:
+            found = False
             for item in findwords:
-                if tag.find(item) == -1:
+                if tag.find(item) > -1:
+                    found = True
+            if not found:
+                if len(tag) > 2:
                     ret_val.append(tag)
+                # print "Adding: ", tag, tag.find(item), item
     return ' '.join(ret_val)
 
 
@@ -490,11 +490,8 @@ def classify_database(clsfy, classrun, notes, num):
     connect()
     curs = CONNECTION.cursor()
 
-    swfile = file("./stopwords.txt", 'r')
-    stopwords = list()
-    for ln in swfile:
-        stopwords.append(ln.lower().strip())
-    swfile.close()
+    stopwords = get_stopwords()
+    findwords = get_findwords()
 
     if num < 0:
         num = " LIMIT ALL"
@@ -512,7 +509,7 @@ def classify_database(clsfy, classrun, notes, num):
         if (count % 10000) == 0:
             print time.asctime(), count
         tags = r[3] + " " + r[4]
-        tags = clean_tags(tags, stopwords)
+        tags = clean_tags(tags, stopwords, findwords)
         prediction = int(clsfy.predict([tags])[0]) # this might be an issue
         sql = "INSERT INTO classifications " \
               "(pred_code, fl_internal_id, notes, " \
@@ -623,9 +620,10 @@ def find_overlapping_tags():
 
     classifier = train_dataset(trng_vals)
     stopwords = get_stopwords()
+    findwords = get_findwords()
 
     for i in trng_vals:
-        in_tags = [clean_tags(i[1], stopwords)]
+        in_tags = [clean_tags(i[1], stopwords, findwords)]
         pred = classifier.predict(in_tags)[0]
         if i[0] != pred:
             print in_tags[0],
@@ -640,6 +638,15 @@ def get_stopwords():
     return stopwords
 
 
+def get_findwords():
+    swfile = file("./findwords.txt", 'r')
+    stopwords = list()
+    for ln in swfile:
+        stopwords.append(ln.lower().strip())
+    swfile.close()
+    return stopwords
+
+
 def getwords(tgt):
     """
     get a pile of words for analysis
@@ -647,6 +654,7 @@ def getwords(tgt):
     :return:
     """
     sw = get_stopwords()
+    fw = get_findwords()
 
     nyc_trng_file = file("./nyc_trng_100.pickle", 'r')
     nyc_trng = pickle.load(nyc_trng_file)
@@ -654,7 +662,7 @@ def getwords(tgt):
 
     wordlist = ' '
     for i in nyc_trng[tgt]:
-        tags = clean_tags(i[1], sw)
+        tags = clean_tags(i[1], sw, fw)
         wordlist += tags
     print wordlist
 
@@ -711,17 +719,19 @@ if __name__ == "__main__":
     # train_to_database(684000, "5k database pull")
     # # print "Done classifying, outputting... "
     # #
-    # hashlen = 6
+    # hashlen = 7
     # ofile = file("./webapp/data/outfile_geohash"+str(hashlen)+".json", 'w')
-    # rvals = geohash_to_polygons(1, 600000, hashlen)
+    # rvals = geohash_to_polygons(7000, 600000, hashlen)
     # ofile.write("var inData =")
     # ofile.write(json.dumps(rvals))
     # ofile.write(";\n")
     # ofile.close()
     # print "done"
-    # perform_geo_class_nyc()
-    # find_overlapping_tags()
+
+    perform_geo_class_nyc()
+
+    # find_overlapping_tags(trn_file)
 
     trn_file = "./out_7000.pickle"
-    gather_nyc_data([7000]*5, 'nyc_class', trn_file)
-    train_to_database(600000, "testing_large", 7000, trn_file)
+    gather_nyc_data([6800]*5, 'nyc_class', trn_file)
+    train_to_database(700000, "testing_large", 7000, trn_file)
