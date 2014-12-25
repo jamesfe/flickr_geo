@@ -425,7 +425,7 @@ def clean_tags(in_string, stopwords):
     :param in_string:
     :return:
     """
-    findwords = list("foursquare", "uploaded", "nofilter")
+    findwords = list(["foursquare", "uploaded", "nofilter"])
     tags = in_string.lower()
     # Tokenize, deduplicate, strip, restring - all one step.
     tags = set([_ for _ in tags.split(" ") if len(_.strip()) > 0])
@@ -548,7 +548,7 @@ def geohash_to_polygons(classrun, num, accuracy=8):
     return ret_vals
 
 
-def train_to_database(num_trng):
+def train_to_database(num_trng, notes):
     """
     train the classifier, then do a bunch of values
 
@@ -566,7 +566,7 @@ def train_to_database(num_trng):
 
     classifier = train_dataset(trng_vals)
 
-    classify_database(classifier, 3, "3000 data points each", num_trng)
+    classify_database(classifier, 3, notes, num_trng)
 
 
 def find_overlapping_tags():
@@ -618,18 +618,64 @@ def getwords(tgt):
         wordlist += tags
     print wordlist
 
+
+def perform_geo_class_nyc():
+    """
+    since the slowest part of this is figuring out which borough things are in,
+    we are going to classify them and store the result in SQL where a JOIN
+    will hopefully be quicker.
+    :return:
+    """
+    connect()
+    boroughs = fiona.open('./shp/nybb_wgs84.shp', 'r')
+    geoms = list()
+    for item in boroughs:
+        shply_shape = shape(item['geometry'])
+        adder = [shply_shape, item['properties']['BoroName']]
+        geoms.append(adder)
+        print adder
+
+    print geoms
+    curs = CONNECTION.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    notes = "nyc_class"
+    sql = "SELECT latitude, longitude, internal_id FROM flickr_data fd WHERE internal_id NOT IN " \
+          "(SELECT internal_id FROM geo_class WHERE geo_notes <> %s)"
+    data = (notes, )
+    curs.execute(sql, data)
+    res = curs.fetchall()
+    for line in res:
+        tgt_point = Point(line['longitude'], line['latitude'])
+        # if not tgt_point.intersects(not_nyc_shp):
+        tval = -1
+        for index, geo in enumerate(geoms):
+            if tgt_point.intersects(geo[0]):
+                tval = index
+                break
+
+        geo_code = tval
+        if tval > -1:
+            geo_text = geoms[tval][1]
+        else:
+            geo_text = "none"
+        sql = "INSERT INTO geo_class" \
+              " (geo_code, geo_text, internal_id, geo_notes) " \
+              "VALUES (%s, %s, %s, %s)"
+        data = (geo_code, geo_text, line['internal_id'], notes)
+        curs.execute(sql, data)
+        CONNECTION.commit()
+
 if __name__ == "__main__":
     # pickle_training_set(5000, "./nyc_trng_4000.pickle")
-    # train_to_database(600000)
-    # print "Done classifying, outputting... "
-    #
-    hashlen = 6
-    ofile = file("./webapp/data/outfile_geohash"+str(hashlen)+".json", 'w')
-    rvals = geohash_to_polygons(1, 600000, hashlen)
-    ofile.write("var inData =")
-    ofile.write(json.dumps(rvals))
-    ofile.write(";\n")
-    ofile.close()
-    print "done"
-
+    # train_to_database(684000, "5k database pull")
+    # # print "Done classifying, outputting... "
+    # #
+    # hashlen = 6
+    # ofile = file("./webapp/data/outfile_geohash"+str(hashlen)+".json", 'w')
+    # rvals = geohash_to_polygons(1, 600000, hashlen)
+    # ofile.write("var inData =")
+    # ofile.write(json.dumps(rvals))
+    # ofile.write(";\n")
+    # ofile.close()
+    # print "done"
+    perform_geo_class_nyc()
     # find_overlapping_tags()

@@ -52,3 +52,14 @@ CREATE TABLE IF NOT EXISTS classifications (
  	id integer  NOT NULL DEFAULT nextval('class_seq'::regclass),
  	CONSTRAINT classifications_pkey PRIMARY KEY (id)
 )
+
+CREATE SEQUENCE geo_class_id;
+
+CREATE TABLE geo_class (
+  geo_code INTEGER,
+  geo_text VARCHAR,
+  internal_id INTEGER,
+  class_notes VARCHAR,
+  id integer  NOT NULL DEFAULT nextval('geo_class_id'::regclass),
+  CONSTRAINT geo_class_id_pkey PRIMARY KEY (id)
+)
