@@ -150,6 +150,46 @@ def get_borough_item(json_line, borough_geoms, stopwords):
         return False
 
 
+def gather_nyc_data(thr_vals, class_notes, outfile):
+    """
+    A function that takes an array like [10,10,10,10,10] and returns
+    that many values (10 of each) for each index in geo_class
+    :param thr_vals:
+    :return:
+    """
+    connect()
+    curs = CONNECTION.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    ret_vals = list([[] for _ in thr_vals])
+
+    swfile = file("./stopwords.txt", 'r')
+    stopwords = list()
+    for ln in swfile:
+        stopwords.append(ln.lower().strip())
+    swfile.close()
+
+    for index, thr in enumerate(thr_vals):
+        sql = "SELECT geo_code, tags, title FROM flickr_data fd " \
+              "INNER JOIN geo_class gc " \
+              "ON fd.internal_id=gc.internal_id " \
+              "WHERE gc.geo_code=%s " \
+              "AND gc.geo_notes=%s LIMIT %s"
+        data = (index, class_notes, thr * 2)
+        print curs.mogrify(sql, data)
+        curs.execute(sql, data)
+        res = curs.fetchall()
+        for r in res:
+            tags = r['tags'] + " " + r['title']
+            tags = clean_tags(tags, stopwords)
+            if len(tags) > 0 and len(ret_vals[index]) < thr_vals[index]:
+                ret_vals[index].append([r['geo_code'], tags])
+
+    print [len(_) for _ in ret_vals]
+
+    outfile = file(outfile, 'w')
+    pickle.dump(ret_vals, outfile)
+    outfile.close()
+
+
 def collect_nyc_training_data(thr_vals, look_box=None):
     """
     collect a minimum of x thresholds for each borough
@@ -548,13 +588,13 @@ def geohash_to_polygons(classrun, num, accuracy=8):
     return ret_vals
 
 
-def train_to_database(num_trng, notes):
+def train_to_database(num_trng, notes, classrun, label_datafile):
     """
     train the classifier, then do a bunch of values
 
     :return:
     """
-    nyc_trng_file = file("./nyc_trng_100.pickle", 'r')
+    nyc_trng_file = file(label_datafile, 'r')
     nyc_trng = pickle.load(nyc_trng_file)
     nyc_trng_file.close()
 
@@ -566,7 +606,7 @@ def train_to_database(num_trng, notes):
 
     classifier = train_dataset(trng_vals)
 
-    classify_database(classifier, 3, notes, num_trng)
+    classify_database(classifier, classrun, notes, num_trng)
 
 
 def find_overlapping_tags():
@@ -633,16 +673,18 @@ def perform_geo_class_nyc():
         shply_shape = shape(item['geometry'])
         adder = [shply_shape, item['properties']['BoroName']]
         geoms.append(adder)
-        print adder
 
-    print geoms
     curs = CONNECTION.cursor(cursor_factory=psycopg2.extras.DictCursor)
     notes = "nyc_class"
-    sql = "SELECT latitude, longitude, internal_id FROM flickr_data fd WHERE internal_id NOT IN " \
-          "(SELECT internal_id FROM geo_class WHERE geo_notes <> %s)"
-    data = (notes, )
-    curs.execute(sql, data)
+
+    sql = "SELECT fd.latitude, fd.longitude, fd.internal_id, gc.geo_notes " \
+          "FROM flickr_data fd " \
+          "LEFT JOIN geo_class gc ON (fd.internal_id=gc.internal_id) " \
+          "WHERE gc.internal_id IS NULL"
+    # Warning: doens't take into account non-NYC classifications
+    curs.execute(sql)
     res = curs.fetchall()
+    print len(res)
     for line in res:
         tgt_point = Point(line['longitude'], line['latitude'])
         # if not tgt_point.intersects(not_nyc_shp):
@@ -677,5 +719,9 @@ if __name__ == "__main__":
     # ofile.write(";\n")
     # ofile.close()
     # print "done"
-    perform_geo_class_nyc()
+    # perform_geo_class_nyc()
     # find_overlapping_tags()
+
+    trn_file = "./out_7000.pickle"
+    gather_nyc_data([7000]*5, 'nyc_class', trn_file)
+    train_to_database(600000, "testing_large", 7000, trn_file)
