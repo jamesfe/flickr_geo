@@ -6,10 +6,46 @@ import time
 import os
 import json
 import pickle
-from flickr_puller import get_payload
 import threading
 import datetime as dt
 import psycopg2
+import requests
+
+API_KEY = open("api_key.txt", 'r').read().strip()
+
+
+def get_payload(city_lat, city_lon, c_page, min_date=None):
+    """
+    Get a number of photos within 32km of a point.
+    :param city_lat: latitude in DD
+    :param city_lon: longitude in DD
+    :param c_page:  which page do you want? 1-n
+    :return:
+    """
+    start = time.time()
+    threshold = 4  # number of seconds we want a call to take
+    payload = {"method": "flickr.photos.search",
+               "accuracy": 8,
+               "lat": city_lat,
+               "lon": city_lon,
+               "radius": 30,
+               "extras": "date_upload,date_taken,owner_name,geo,tags",
+               "per_page": 500,
+               "format": "json",
+               "nojsoncallback": 1,
+               "page": c_page,
+               "api_key": API_KEY}
+    if isinstance(min_date, int):
+        payload["min_upload_date"] = min_date
+        payload["max_upload_date"] = min_date+86400
+
+    flickr_req = requests.get("https://api.flickr.com/services/rest/",
+                              params=payload)
+    photo_list = json.loads(flickr_req.text)
+    tot_time = time.time() - start
+    if tot_time < threshold:
+        time.sleep(threshold - tot_time)
+    return photo_list["photos"]["photo"]
 
 
 class DataCollector(threading.Thread):
@@ -96,8 +132,8 @@ class DataCollector(threading.Thread):
                                 self.basename
                             self.tgt_list[index]['dead'] = True
 
-                for index, target in enumerate(self.tgt_list):
-                    self.tgt_list[index]['dead'] = False
+            for index, target in enumerate(self.tgt_list):
+                self.tgt_list[index]['dead'] = False
 
         for target in self.tgt_list:
             target['file'].close()
@@ -187,6 +223,7 @@ def get_checker(fname):
     except:
         return dict({"sec_time": 1, "curr_page": 1})
     check = pickle.load(r)
+    print check
     return check
 
 
@@ -196,22 +233,22 @@ if __name__ == "__main__":
 
     for yr in [2011, 2012, 2013, 2014]:
         yrs = str(yr)
-        colls.append(DataCollector("./checkers/hampton_roads"+yrs+".pickle",
-                                   "./data/hroads"+yrs, "hr_data"+yrs,
-                                   [37.91, -77.81], [35.8, -75.40],
-                                   10, dt.datetime(yr, 1, 1)))
-        colls.append(DataCollector("./checkers/sf_checker"+yrs+".pickle",
-                                   "./data/sfo"+yrs, "sfo_tgts_test"+yrs,
-                                   [38, -123], [37, -120],
-                                   5, dt.datetime(yr, 1, 1)))
-        colls.append(DataCollector("./checkers/nyc"+yrs+".pickle",
-                                   "./data/nyc/"+yrs, "nyc"+yrs,
-                                   [42, -75], [40, -72],
-                                   10, dt.datetime(yr, 1, 1)))
+        # colls.append(DataCollector("./checkers/hampton_roads"+yrs+".pickle",
+        #                            "./data/hroads"+yrs, "hr_data"+yrs,
+        #                            [37.91, -77.81], [35.8, -75.40],
+        #                            10, dt.datetime(yr, 1, 1)))
+        # colls.append(DataCollector("./checkers/sf_checker"+yrs+".pickle",
+        #                            "./data/sfo"+yrs, "sfo_tgts_test"+yrs,
+        #                            [38, -123], [37, -120],
+        #                            5, dt.datetime(yr, 1, 1)))
+        # colls.append(DataCollector("./checkers/nyc"+yrs+".pickle",
+        #                            "./data/nyc/"+yrs, "nyc"+yrs,
+        #                            [42, -75], [40, -72],
+        #                            10, dt.datetime(yr, 1, 1)))
         colls.append(DataCollector("./checkers/bigdc"+yrs+".pickle",
                                    "./data/wdc/"+yrs, "wdc"+yrs,
                                    [40, -78], [37.5, -76],
-                                   10, dt.datetime(yr, 1, 1)))
+                                   8, dt.datetime(yr, 1, 1)))
 
     for i in colls:
         i.start()

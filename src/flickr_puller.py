@@ -22,7 +22,7 @@ import math
 from geohash import encode, bbox
 from operator import itemgetter
 
-API_KEY = open("api_key.txt", 'r').read().strip()
+
 NY_LAT = 40.69
 NY_LON = -74.00
 DC_LAT = 38.90
@@ -32,40 +32,6 @@ BRONX_LON = -73.86
 BRONX_LAT = 40.85
 STISL_LON = -74.14
 STISL_LAT = 40.58
-
-
-def get_payload(city_lat, city_lon, c_page, min_date=None):
-    """
-    Get a number of photos within 32km of a point.
-    :param city_lat: latitude in DD
-    :param city_lon: longitude in DD
-    :param c_page:  which page do you want? 1-n
-    :return:
-    """
-    start = time.time()
-    threshold = 1  # number of seconds we want a call to take
-    payload = {"method": "flickr.photos.search",
-               "accuracy": 8,
-               "lat": city_lat,
-               "lon": city_lon,
-               "radius": 30,
-               "extras": "date_upload,date_taken,owner_name,geo,tags",
-               "per_page": 250,
-               "format": "json",
-               "nojsoncallback": 1,
-               "page": c_page,
-               "api_key": API_KEY}
-    if isinstance(min_date, int):
-        payload["min_upload_date"] = min_date
-        payload["max_upload_date"] = min_date+86400
-
-    flickr_req = requests.get("https://api.flickr.com/services/rest/",
-                              params=payload)
-    photo_list = json.loads(flickr_req.text)
-    tot_time = time.time() - start
-    if tot_time < threshold:
-        time.sleep(threshold - tot_time)
-    return photo_list["photos"]["photo"]
 
 
 def multi_day_authors(in_file, num_days):
@@ -383,16 +349,24 @@ def classify_database(clsfy, classrun, notes, num):
             ## pick the data, then add to another DB row
 
 
-def geohash_to_polygons(classrun, num, accuracy=8):
+def geohash_to_polygons(classrun, num, look_box, accuracy=8):
     """
     turn a class run into a JSON file for leaflet to interpret
     :param classrun:
     :return:
     """
     connect()
+    lats = sorted(look_box['lats'])
+    lons = sorted(look_box['lons'])
+
     sql = "SELECT pred_code, latitude, longitude " \
-          "FROM classifications WHERE classrun=%s LIMIT %s"
-    data = (classrun, num)
+          "FROM classifications WHERE classrun=%s " \
+          "AND latitude < %s " \
+          "AND latitude > %s " \
+          "AND longitude < %s " \
+          "AND longitude > %s " \
+          "LIMIT %s"
+    data = (classrun, lats[1], lats[0], lons[1], lons[0], num)
     curs = CONNECTION.cursor()
     curs.execute(sql, data)
     results = curs.fetchall()
@@ -576,15 +550,18 @@ def perform_geo_class_nyc():
         CONNECTION.commit()
 
 if __name__ == "__main__":
-    perform_geo_class_nyc()
+    # perform_geo_class_nyc()
     trn_file = "./pickles/out_7000.pickle"
-    gather_nyc_data([6800]*5, 'nyc_class', trn_file)
-    find_overlapping_tags(trn_file, "overlaps.txt")
-    print "Overlaps complete."
-    train_to_database(-1, "total_redo", 7001, trn_file)
-    hashlen = 7
-    ofile = file("./webapp/data/outfile_geohash"+str(hashlen)+".json", 'w')
-    rvals = geohash_to_polygons(7001, 710000, hashlen)
+    # gather_nyc_data([7500]*5, 'nyc_class', trn_file)
+    # print "Finding Overlaps: "
+    # find_overlapping_tags(trn_file, "overlaps.txt")
+    # print "Overlaps complete."
+    # train_to_database(-1, "total_redo", 7001, trn_file)
+    hashlen = 6
+    ofile = file("./webapp/data/nyc_outfile_geohash"+str(hashlen)+".json", 'w')
+    # dc_lbox = dict({"lats": [40, 37.5], "lons": [-78, -76]})
+    nyc_lbox = dict({"lats": [42, 40], "lons": [-75, -72]})
+    rvals = geohash_to_polygons(7001, 1000000, nyc_lbox, hashlen)
     ofile.write("var inData =")
     ofile.write(json.dumps(rvals))
     ofile.write(";\n")
