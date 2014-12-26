@@ -5,3 +5,7 @@ instagramapp
 square
 squareformat
 iphoneography
+vision
+outdoor
+nyc
+the

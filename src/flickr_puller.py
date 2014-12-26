@@ -43,7 +43,7 @@ def get_payload(city_lat, city_lon, c_page, min_date=None):
     :return:
     """
     start = time.time()
-    threshold = 3  # number of seconds we want a call to take
+    threshold = 1  # number of seconds we want a call to take
     payload = {"method": "flickr.photos.search",
                "accuracy": 8,
                "lat": city_lat,
@@ -187,132 +187,6 @@ def gather_nyc_data(thr_vals, class_notes, outfile):
     outfile.close()
 
 
-def collect_nyc_training_data(thr_vals, look_box=None):
-    """
-    collect a minimum of x thresholds for each borough
-    :param thr_vals:
-    :return:
-    """
-    boroughs = fiona.open('./shp/nybb_wgs84.shp', 'r')
-    geoms = list()
-    for item in boroughs:
-        shply_shape = shape(item['geometry'])
-        adder = [shply_shape, item['properties']['BoroName']]
-        geoms.append(adder)
-        # Maybe I should simplify this polygon a bit?
-        print adder
-
-    if len(thr_vals) != len(geoms):
-        return -1
-
-    stopwords = get_stopwords()
-    findwords = get_findwords()
-
-    retvals = [list() for _ in range(0, len(thr_vals))]
-    curr_id = 0
-
-    curs = CONNECTION.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
-    # We create a loop that watches to see if the lengths of the ret_vlas
-    # is the same as the threshold item.
-    # We get things from the database and see where they are from.
-
-    done = False
-    num_pull = thr_vals[0] * 10
-
-    max_lat = max([look_box['top'], look_box['bottom']])
-    max_lon = max([look_box['left'], look_box['right']])
-    min_lat = min([look_box['top'], look_box['bottom']])
-    min_lon = min([look_box['left'], look_box['right']])
-
-    while done is False:
-        dq = [len(_) for _ in retvals]
-        print time.asctime(), dq, curr_id
-        done = True
-        for index, k in enumerate(thr_vals):
-            if k != len(retvals[index]):
-                done = False
-        sql = "SELECT id, internal_id, tags, latitude, longitude, title " \
-              "FROM flickr_data WHERE internal_id > %s " \
-              "ORDER BY internal_id ASC LIMIT 10000"
-        if look_box is not None:
-            sql = "SELECT id, internal_id, tags, latitude, longitude, title " \
-                  "FROM flickr_data WHERE internal_id > %s " \
-                  "AND latitude < %s " \
-                  "AND latitude > %s " \
-                  "AND longitude < %s " \
-                  "AND longitude > %s " \
-                  "ORDER BY internal_id ASC LIMIT %s"
-        data = (curr_id, max_lat, min_lat,
-                max_lon, min_lon, num_pull)
-        curs.execute(sql, data)
-        print curs.mogrify(sql, data)
-        res = curs.fetchall()
-        if len(res) == 0:
-            print "Not enough data."
-            return retvals
-        for r in res:
-            curr_id = r['internal_id']
-            check_data = get_borough_item(r, geoms, stopwords, findwords)
-            if isinstance(check_data, list):
-                cd = check_data[0]
-                if 0 <= cd < len(retvals):
-                    if len(retvals[cd]) < thr_vals[cd]:
-                        retvals[cd].append(check_data)
-
-    return retvals
-
-
-def return_borough_tags(valid_authors, in_file):
-    """
-    given the shapefile of boroughs and an input file plus valid authors...
-    we return a series of objects: classification + tags
-    :param valid_authors:
-    :param in_file:
-    :return:
-    """
-    starttime = time.time()
-    # not_nyc = fiona.open("./shp/empty_nyc.shp", 'r')
-    # for poly in not_nyc:
-    #     not_nyc_shp = shape(poly['geometry'])
-
-    boroughs = fiona.open('./shp/nybb_wgs84.shp', 'r')
-    geoms = list()
-    for item in boroughs:
-        shply_shape = shape(item['geometry'])
-        adder = [shply_shape, item['properties']['BoroName']]
-        geoms.append(adder)
-
-    swfile = file("./stopwords.txt", 'r')
-    stopwords = list()
-    for ln in swfile:
-        stopwords.append(ln.lower().strip())
-    swfile.close()
-
-    in_reader = open(in_file, 'r')
-    tag_returns = list()
-    count = 0
-    totcount = 0
-    for line in in_reader:
-        try:
-            totcount += 1
-            jsline = json.loads(line)
-            if jsline['owner'] in valid_authors:
-                b_class = get_borough_item(jsline, geoms, stopwords)
-                # Get the borough class from this function.
-                if b_class >= 0:
-                    tag_returns.append(b_class)
-
-        except ValueError:
-            pass
-    print count, totcount
-    print len(tag_returns)
-    # print tag_returns
-    tot_time = time.time() - starttime
-    print tot_time
-    return tag_returns
-
-
 def connect():
     """
     Connect to DB.
@@ -399,9 +273,7 @@ def file_to_database(filename):
 
 def train_dataset(ret_tags):
     random.shuffle(ret_tags)
-    nyc_authors = pickle.load(file('nyc_authors.pickle', 'r'))
-    boroughs = [u'Staten Island', u'Manhattan', u'Bronx', u'Brooklyn', u'Queens']
-
+    print "Sample: "
     print ret_tags[0]
 
     line = int(math.floor(len(ret_tags) * .80))
@@ -434,22 +306,6 @@ def train_dataset(ret_tags):
     return text_clf
 
 
-def pickle_training_set(vals, outfile):
-    connect()
-    thresholds = [vals for _ in range(0, 5)]
-    print thresholds
-    look_box = dict({
-        "top": 41,
-        "bottom": 40.4,
-        "left": -74.5,
-        "right": -73.6})
-
-    ret_vals = collect_nyc_training_data(thresholds, look_box)
-    outfile = file(outfile, 'w')
-    pickle.dump(ret_vals, outfile)
-    outfile.close()
-
-
 def clean_tags(in_string, stopwords, findwords):
     """
     take an instring
@@ -465,6 +321,7 @@ def clean_tags(in_string, stopwords, findwords):
     ret_val = list()
 
     for tag in tags:
+        tag = tag.replace("#", "")
         # print tag.find("uploaded")
         if tag not in stopwords:
             found = False
@@ -606,8 +463,8 @@ def train_to_database(num_trng, notes, classrun, label_datafile):
     classify_database(classifier, classrun, notes, num_trng)
 
 
-def find_overlapping_tags():
-    nyc_trng_file = file("./nyc_trng_100.pickle", 'r')
+def find_overlapping_tags(trng_file, over_file):
+    nyc_trng_file = file(trng_file, 'r')
     nyc_trng = pickle.load(nyc_trng_file)
     nyc_trng_file.close()
 
@@ -622,11 +479,15 @@ def find_overlapping_tags():
     stopwords = get_stopwords()
     findwords = get_findwords()
 
+    ofile = file(over_file, 'w')
+
     for i in trng_vals:
         in_tags = [clean_tags(i[1], stopwords, findwords)]
         pred = classifier.predict(in_tags)[0]
         if i[0] != pred:
-            print in_tags[0],
+            ofile.write(i[1] + "\n")
+
+    ofile.close()
 
 
 def get_stopwords():
@@ -715,23 +576,17 @@ def perform_geo_class_nyc():
         CONNECTION.commit()
 
 if __name__ == "__main__":
-    # pickle_training_set(5000, "./nyc_trng_4000.pickle")
-    # train_to_database(684000, "5k database pull")
-    # # print "Done classifying, outputting... "
-    # #
-    # hashlen = 7
-    # ofile = file("./webapp/data/outfile_geohash"+str(hashlen)+".json", 'w')
-    # rvals = geohash_to_polygons(7000, 600000, hashlen)
-    # ofile.write("var inData =")
-    # ofile.write(json.dumps(rvals))
-    # ofile.write(";\n")
-    # ofile.close()
-    # print "done"
-
     perform_geo_class_nyc()
-
-    # find_overlapping_tags(trn_file)
-
-    trn_file = "./out_7000.pickle"
+    trn_file = "./pickles/out_7000.pickle"
     gather_nyc_data([6800]*5, 'nyc_class', trn_file)
-    train_to_database(700000, "testing_large", 7000, trn_file)
+    find_overlapping_tags(trn_file, "overlaps.txt")
+    print "Overlaps complete."
+    train_to_database(-1, "total_redo", 7001, trn_file)
+    hashlen = 7
+    ofile = file("./webapp/data/outfile_geohash"+str(hashlen)+".json", 'w')
+    rvals = geohash_to_polygons(7001, 710000, hashlen)
+    ofile.write("var inData =")
+    ofile.write(json.dumps(rvals))
+    ofile.write(";\n")
+    ofile.close()
+    print "done"
