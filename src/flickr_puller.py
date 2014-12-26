@@ -257,7 +257,6 @@ def train_dataset(ret_tags):
 
     text_clf = Pipeline([('vect', CountVectorizer()),
                          ('tfidf', TfidfTransformer(use_idf=False, norm='l1')),
-                         # ('clf', MultinomialNB())
                          ('clf', SGDClassifier(penalty='elasticnet',
                                                alpha=1e-06, n_iter=50))
     ])
@@ -557,11 +556,11 @@ if __name__ == "__main__":
     # find_overlapping_tags(trn_file, "overlaps.txt")
     # print "Overlaps complete."
     # train_to_database(-1, "total_redo", 7001, trn_file)
-    hashlen = 6
-    ofile = file("./webapp/data/nyc_outfile_geohash"+str(hashlen)+".json", 'w')
-    # dc_lbox = dict({"lats": [40, 37.5], "lons": [-78, -76]})
-    nyc_lbox = dict({"lats": [42, 40], "lons": [-75, -72]})
-    rvals = geohash_to_polygons(7001, 1000000, nyc_lbox, hashlen)
+    hashlen = 5
+    ofile = file("./webapp/data/dc_outfile_geohash"+str(hashlen)+".json", 'w')
+    dc_lbox = dict({"lats": [40, 37.5], "lons": [-78, -76]})
+    # nyc_lbox = dict({"lats": [42, 40], "lons": [-75, -72]})
+    rvals = geohash_to_polygons(7001, 1000000, dc_lbox, hashlen)
     ofile.write("var inData =")
     ofile.write(json.dumps(rvals))
     ofile.write(";\n")

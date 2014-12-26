@@ -49,9 +49,17 @@ def get_payload(city_lat, city_lon, c_page, min_date=None):
 
 
 class DataCollector(threading.Thread):
-    def __init__(self, checker_name, basepath, basename, top_left, bottom_right, numpieces, start_date):
+    def __init__(self, checker_name, basepath, basename, top_left,
+                 bottom_right, numpieces, start_date):
         """
-        Build oneself.
+        Initializer.
+        :param checker_name: filename for a .pickle file to check progress
+        :param basepath: base path for the storage of JSON backups
+        :param basename: base name for the JSON backup files
+        :param top_left: upper left corner of collection area [lat, lon]
+        :param bottom_right: bottom right corner of coll area [lat, lon]
+        :param numpieces: number of pieces to divide area into
+        :param start_date: datetime object to start collections for that year on
         :return:
         """
         threading.Thread.__init__(self)
@@ -103,6 +111,7 @@ class DataCollector(threading.Thread):
         md = start_checker['sec_time']
 
         for sec_time in range(md, 365):
+            print time.asctime(), self.basename, " seconds: ", sec_time
             minpage = 0
             if sec_time != start_checker['sec_time']:
                     minpage = start_checker['curr_page']
@@ -125,12 +134,11 @@ class DataCollector(threading.Thread):
                             r = self.import_line(photo)
                             if r is not False:
                                 numinserted += 1
-                        print time.asctime(), "Received: ", \
-                            len(ret_photos), " Inserted: ", numinserted
                         if len(ret_photos) == 0 or numinserted == 0:
-                            print "Marking ", target, " dead for ", \
-                                self.basename
                             self.tgt_list[index]['dead'] = True
+                        elif numinserted > 0:
+                            print time.asctime(), self.basename, " received: ", \
+                                len(ret_photos), " Inserted: ", numinserted
 
             for index, target in enumerate(self.tgt_list):
                 self.tgt_list[index]['dead'] = False
@@ -153,6 +161,7 @@ class DataCollector(threading.Thread):
         data = (line['id'],)
         curs.execute(sql, data)
         res = curs.fetchone()
+        self.ids.add(line['id'])
 
         if res[0] == 0:
             flds = ['ispublic', 'place_id', 'geo_is_public', 'owner',
@@ -231,7 +240,8 @@ if __name__ == "__main__":
 
     colls = list()
 
-    for yr in [2011, 2012, 2013, 2014]:
+    # for yr in [2011, 2012, 2013, 2014]:
+    for yr in [2006, 2007, 2008, 2009, 2010]:
         yrs = str(yr)
         # colls.append(DataCollector("./checkers/hampton_roads"+yrs+".pickle",
         #                            "./data/hroads"+yrs, "hr_data"+yrs,
