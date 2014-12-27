@@ -8,10 +8,10 @@ import datetime
 import fiona
 from shapely.geometry import Point, shape
 import pickle
-import psycopg2, psycopg2.extras
+import psycopg2
+import psycopg2.extras
 import random
 
-## scikitlearn stuff
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.linear_model import SGDClassifier
@@ -194,7 +194,8 @@ def import_line(line):
                 data.append(line[fld])
         fields = ",".join(fields)
         dataholder = (",%s"*len(data))[1:]
-        sql = "INSERT INTO flickr_data (" + fields + ") VALUES (" + dataholder + ")"
+        sql = "INSERT INTO flickr_data (" + fields + \
+              ") VALUES (" + dataholder + ")"
 
         try:
             curs.execute(sql, data)
@@ -258,8 +259,7 @@ def train_dataset(ret_tags):
     text_clf = Pipeline([('vect', CountVectorizer()),
                          ('tfidf', TfidfTransformer(use_idf=False, norm='l1')),
                          ('clf', SGDClassifier(penalty='elasticnet',
-                                               alpha=1e-06, n_iter=50))
-    ])
+                                               alpha=1e-06, n_iter=50))])
 
     text_clf = text_clf.fit(trng_docs[:line], trng_vals[:line])
 
@@ -332,7 +332,7 @@ def classify_database(clsfy, classrun, notes, num):
             print time.asctime(), count
         tags = r[3] + " " + r[4]
         tags = clean_tags(tags, stopwords, findwords)
-        prediction = int(clsfy.predict([tags])[0]) # this might be an issue
+        prediction = int(clsfy.predict([tags])[0])  # this might be an issue
         sql = "INSERT INTO classifications " \
               "(pred_code, fl_internal_id, notes, " \
               "classrun, latitude, longitude) " \
@@ -345,7 +345,7 @@ def classify_database(clsfy, classrun, notes, num):
             print curs.mogrify(sql, data)
             print "Exception of type : " + str(type(err)) \
                   + ".  Rolling back..." + str(err)
-            ## pick the data, then add to another DB row
+            # pick the data, then add to another DB row
 
 
 def geohash_to_polygons(classrun, num, look_box, accuracy=8):
@@ -527,7 +527,9 @@ def perform_geo_class_nyc():
     curs.execute(sql)
     res = curs.fetchall()
     print len(res)
-    for line in res:
+    for numcoord, line in enumerate(res):
+        if (numcoord % 10000) == 0:
+            print time.asctime(), "Geo categorized: ", numcoord
         tgt_point = Point(line['longitude'], line['latitude'])
         # if not tgt_point.intersects(not_nyc_shp):
         tval = -1
@@ -549,20 +551,20 @@ def perform_geo_class_nyc():
         CONNECTION.commit()
 
 if __name__ == "__main__":
-    # perform_geo_class_nyc()
+    perform_geo_class_nyc()
     trn_file = "./pickles/out_7000.pickle"
-    # gather_nyc_data([7500]*5, 'nyc_class', trn_file)
-    # print "Finding Overlaps: "
-    # find_overlapping_tags(trn_file, "overlaps.txt")
-    # print "Overlaps complete."
-    # train_to_database(-1, "total_redo", 7001, trn_file)
-    hashlen = 5
-    ofile = file("./webapp/data/dc_outfile_geohash"+str(hashlen)+".json", 'w')
-    dc_lbox = dict({"lats": [40, 37.5], "lons": [-78, -76]})
-    # nyc_lbox = dict({"lats": [42, 40], "lons": [-75, -72]})
-    rvals = geohash_to_polygons(7001, 1000000, dc_lbox, hashlen)
-    ofile.write("var inData =")
-    ofile.write(json.dumps(rvals))
-    ofile.write(";\n")
-    ofile.close()
-    print "done"
+    gather_nyc_data([15000]*5, 'nyc_class', trn_file)
+    print "Finding Overlaps: "
+    find_overlapping_tags(trn_file, "overlaps.txt")
+    print "Overlaps complete."
+    train_to_database(-1, "total_redo", 7001, trn_file)
+    # hashlen = 5
+    # ofile = file("./webapp/data/dc_outfile_geohash"+str(hashlen)+".json", 'w')
+    # dc_lbox = dict({"lats": [40, 37.5], "lons": [-78, -76]})
+    # # nyc_lbox = dict({"lats": [42, 40], "lons": [-75, -72]})
+    # rvals = geohash_to_polygons(7001, 1000000, dc_lbox, hashlen)
+    # ofile.write("var inData =")
+    # ofile.write(json.dumps(rvals))
+    # ofile.write(";\n")
+    # ofile.close()
+    # print "done"

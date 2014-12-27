@@ -23,7 +23,7 @@ def get_payload(city_lat, city_lon, c_page, min_date=None):
     :return:
     """
     start = time.time()
-    threshold = 4  # number of seconds we want a call to take
+    threshold = 12  # number of seconds we want a call to take
     payload = {"method": "flickr.photos.search",
                "accuracy": 8,
                "lat": city_lat,
@@ -59,7 +59,8 @@ class DataCollector(threading.Thread):
         :param top_left: upper left corner of collection area [lat, lon]
         :param bottom_right: bottom right corner of coll area [lat, lon]
         :param numpieces: number of pieces to divide area into
-        :param start_date: datetime object to start collections for that year on
+        :param start_date: datetime object to start collections for
+        that year on
         :return:
         """
         threading.Thread.__init__(self)
@@ -243,18 +244,18 @@ if __name__ == "__main__":
     # for yr in [2011, 2012, 2013, 2014]:
     for yr in [2006, 2007, 2008, 2009, 2010]:
         yrs = str(yr)
-        # colls.append(DataCollector("./checkers/hampton_roads"+yrs+".pickle",
-        #                            "./data/hroads"+yrs, "hr_data"+yrs,
-        #                            [37.91, -77.81], [35.8, -75.40],
-        #                            10, dt.datetime(yr, 1, 1)))
-        # colls.append(DataCollector("./checkers/sf_checker"+yrs+".pickle",
-        #                            "./data/sfo"+yrs, "sfo_tgts_test"+yrs,
-        #                            [38, -123], [37, -120],
-        #                            5, dt.datetime(yr, 1, 1)))
-        # colls.append(DataCollector("./checkers/nyc"+yrs+".pickle",
-        #                            "./data/nyc/"+yrs, "nyc"+yrs,
-        #                            [42, -75], [40, -72],
-        #                            10, dt.datetime(yr, 1, 1)))
+        colls.append(DataCollector("./checkers/hampton_roads"+yrs+".pickle",
+                                   "./data/hroads"+yrs, "hr_data"+yrs,
+                                   [37.91, -77.81], [35.8, -75.40],
+                                   10, dt.datetime(yr, 1, 1)))
+        colls.append(DataCollector("./checkers/sf_checker"+yrs+".pickle",
+                                   "./data/sfo"+yrs, "sfo_tgts_test"+yrs,
+                                   [38, -123], [37, -120],
+                                   5, dt.datetime(yr, 1, 1)))
+        colls.append(DataCollector("./checkers/nyc"+yrs+".pickle",
+                                   "./data/nyc/"+yrs, "nyc"+yrs,
+                                   [42, -75], [40, -72],
+                                   10, dt.datetime(yr, 1, 1)))
         colls.append(DataCollector("./checkers/bigdc"+yrs+".pickle",
                                    "./data/wdc/"+yrs, "wdc"+yrs,
                                    [40, -78], [37.5, -76],
