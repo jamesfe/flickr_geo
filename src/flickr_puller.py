@@ -558,13 +558,13 @@ if __name__ == "__main__":
     find_overlapping_tags(trn_file, "overlaps.txt")
     print "Overlaps complete."
     train_to_database(-1, "total_redo", 7001, trn_file)
-    # hashlen = 5
-    # ofile = file("./webapp/data/dc_outfile_geohash"+str(hashlen)+".json", 'w')
-    # dc_lbox = dict({"lats": [40, 37.5], "lons": [-78, -76]})
-    # # nyc_lbox = dict({"lats": [42, 40], "lons": [-75, -72]})
-    # rvals = geohash_to_polygons(7001, 1000000, dc_lbox, hashlen)
-    # ofile.write("var inData =")
-    # ofile.write(json.dumps(rvals))
-    # ofile.write(";\n")
-    # ofile.close()
-    # print "done"
+    hashlen = 5
+    ofile = file("./webapp/data/dc_outfile_geohash"+str(hashlen)+".json", 'w')
+    dc_lbox = dict({"lats": [40, 37.5], "lons": [-78, -76]})
+    # nyc_lbox = dict({"lats": [42, 40], "lons": [-75, -72]})
+    rvals = geohash_to_polygons(7001, 1000000, dc_lbox, hashlen)
+    ofile.write("var inData =")
+    ofile.write(json.dumps(rvals))
+    ofile.write(";\n")
+    ofile.close()
+    print "done"
