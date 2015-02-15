@@ -1,6 +1,8 @@
 -- Table: flickr_data
 
--- DROP TABLE flickr_data;
+DROP TABLE flickr_data cascade;
+drop sequence id_seq;
+create sequence id_seq;
 
 CREATE TABLE flickr_data
 (
@@ -37,10 +39,10 @@ WITH (
 ALTER TABLE flickr_data
   OWNER TO jimmy1;
 
+drop table classifications cascade;
 
+drop sequence class_seq;
 CREATE sequence class_seq;
-
-drop table classifications;
 
 CREATE TABLE IF NOT EXISTS classifications (
  	pred_code INTEGER,
@@ -51,8 +53,11 @@ CREATE TABLE IF NOT EXISTS classifications (
  	longitude double precision,
  	id integer  NOT NULL DEFAULT nextval('class_seq'::regclass),
  	CONSTRAINT classifications_pkey PRIMARY KEY (id)
-)
+);
 
+drop table geo_class cascade;
+
+drop sequence geo_class_id;
 CREATE SEQUENCE geo_class_id;
 
 CREATE TABLE geo_class (
@@ -62,4 +67,4 @@ CREATE TABLE geo_class (
   class_notes VARCHAR,
   id integer  NOT NULL DEFAULT nextval('geo_class_id'::regclass),
   CONSTRAINT geo_class_id_pkey PRIMARY KEY (id)
-)
+);

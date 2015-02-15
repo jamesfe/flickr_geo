@@ -23,7 +23,7 @@ def get_payload(city_lat, city_lon, c_page, min_date=None):
     :return:
     """
     start = time.time()
-    threshold = 12  # number of seconds we want a call to take
+    threshold = 18  # number of seconds we want a call to take
     payload = {"method": "flickr.photos.search",
                "accuracy": 8,
                "lat": city_lat,
@@ -260,6 +260,10 @@ if __name__ == "__main__":
                                    "./data/wdc/"+yrs, "wdc"+yrs,
                                    [40, -78], [37.5, -76],
                                    8, dt.datetime(yr, 1, 1)))
+        colls.append(DataCollector("./stisle"+yrs+".pickle",
+                                   "./data/stislestisle"+yrs, "stl"+yrs,
+                                   [40.6, -74.3], [40.4, -73.9],
+                                   3, dt.datetime(yr, 1, 1)))
 
     for i in colls:
         i.start()

@@ -2,7 +2,6 @@
 A quick script to pull some data from flickr surrounding given points.
 """
 import json
-import requests
 import time
 import datetime
 import fiona
@@ -10,6 +9,7 @@ from shapely.geometry import Point, shape
 import pickle
 import psycopg2
 import psycopg2.extras
+import re
 import random
 
 from sklearn.feature_extraction.text import CountVectorizer
@@ -281,6 +281,8 @@ def clean_tags(in_string, stopwords, findwords):
     :return:
     """
     tags = in_string.lower()
+    # tags = filter(lambda x: x in string.printable, tags)
+    tags = re.sub('[^0-9a-zA-Z\s]+', '', tags)
     # Tokenize, deduplicate, strip, restring - all one step.
     tags = set([_ for _ in tags.split(" ") if len(_.strip()) > 0])
     ret_val = list()
@@ -526,7 +528,7 @@ def perform_geo_class_nyc():
     # Warning: doens't take into account non-NYC classifications
     curs.execute(sql)
     res = curs.fetchall()
-    print len(res)
+    print "Results to categorize: ", len(res)
     for numcoord, line in enumerate(res):
         if (numcoord % 10000) == 0:
             print time.asctime(), "Geo categorized: ", numcoord
@@ -551,20 +553,22 @@ def perform_geo_class_nyc():
         CONNECTION.commit()
 
 if __name__ == "__main__":
-    perform_geo_class_nyc()
-    trn_file = "./pickles/out_7000.pickle"
-    gather_nyc_data([15000]*5, 'nyc_class', trn_file)
-    print "Finding Overlaps: "
-    find_overlapping_tags(trn_file, "overlaps.txt")
-    print "Overlaps complete."
-    train_to_database(-1, "total_redo", 7001, trn_file)
-    hashlen = 5
-    ofile = file("./webapp/data/dc_outfile_geohash"+str(hashlen)+".json", 'w')
-    dc_lbox = dict({"lats": [40, 37.5], "lons": [-78, -76]})
+    # dc_lbox = dict({"lats": [40, 37.5], "lons": [-78, -76]})
     # nyc_lbox = dict({"lats": [42, 40], "lons": [-75, -72]})
-    rvals = geohash_to_polygons(7001, 1000000, dc_lbox, hashlen)
-    ofile.write("var inData =")
-    ofile.write(json.dumps(rvals))
-    ofile.write(";\n")
-    ofile.close()
+
+    # perform_geo_class_nyc()
+    trn_file = "./pickles/out_10000.pickle"
+    gather_nyc_data([10700]*5, 'nyc_class', trn_file)
+    # # print "Finding Overlaps: "
+    # # find_overlapping_tags(trn_file, "overlaps.txt")
+    # # print "Overlaps complete."
+    # # train_to_database(-1, "test_1", 8001, trn_file)
+    # hashlen = 6
+    # ofile = file("./webapp/data/nyc_outfile_geohash"+str(hashlen)+".json", 'w')
+    # all_lbox = dict({'lats': [30, 50], 'lons': [-60, -200]})
+    # rvals = geohash_to_polygons(8001, 2240000, all_lbox, hashlen)
+    # ofile.write("var inData =")
+    # ofile.write(json.dumps(rvals))
+    # ofile.write(";\n")
+    # ofile.close()
     print "done"
