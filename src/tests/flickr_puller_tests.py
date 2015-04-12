@@ -7,7 +7,7 @@ Needs improvement.
 from __future__ import (absolute_import)
 
 import unittest
-import flickr_puller
+# import ..flickr_puller
 
 
 class TestFlickerPuller(unittest.TestCase):
