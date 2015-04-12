@@ -1,5 +1,5 @@
 # coding: utf-8
-from __future__ import (absolute_import, division, unicode_literals, print_function)
+from __future__ import (division, unicode_literals, print_function)
 
 """
 A program to pull data over a set of coordinates  Uses flickr_puller
@@ -12,43 +12,10 @@ import logging
 import pickle
 import threading
 import psycopg2
-import requests
+from .collection_functions import (build_targets, get_checker, get_payload)
 
-API_KEY = open("api_key.txt", 'r').read().strip()
-
-
-def get_payload(city_lat, city_lon, c_page, min_date=None):
-    """
-    Get a number of photos within 32km of a point.
-    :param city_lat: latitude in DD
-    :param city_lon: longitude in DD
-    :param c_page:  which page do you want? 1-n
-    :return:
-    """
-    start = time.time()
-    threshold = 18  # number of seconds we want a call to take
-    payload = {"method": "flickr.photos.search",
-               "accuracy": 8,
-               "lat": city_lat,
-               "lon": city_lon,
-               "radius": 30,
-               "extras": "date_upload,date_taken,owner_name,geo,tags",
-               "per_page": 500,
-               "format": "json",
-               "nojsoncallback": 1,
-               "page": c_page,
-               "api_key": API_KEY}
-    if isinstance(min_date, int):
-        payload["min_upload_date"] = min_date
-        payload["max_upload_date"] = min_date+86400
-
-    flickr_req = requests.get("https://api.flickr.com/services/rest/",
-                              params=payload)
-    photo_list = json.loads(flickr_req.text)
-    tot_time = time.time() - start
-    if tot_time < threshold:
-        time.sleep(threshold - tot_time)
-    return photo_list["photos"]["photo"]
+with open("api_key.txt", 'r') as apikey:
+    API_KEY = apikey.read().strip()
 
 
 class DataCollector(threading.Thread):
@@ -67,7 +34,7 @@ class DataCollector(threading.Thread):
         :return:
         """
         threading.Thread.__init__(self)
-        self.logger = logging.getLOgger(logname)
+        self.logger = logging.getLogger(logname)
         self.checker = checker_name
         self.basename = basename
         self.tgt_list = build_targets([top_left, bottom_right],
@@ -80,7 +47,6 @@ class DataCollector(threading.Thread):
         if not os.path.isdir(basepath):
             os.mkdir(basepath)
             self.logger.info("Made directory: " + basepath)
-
 
         for target in self.tgt_list:
             tm = os.path.join(basepath,
@@ -113,7 +79,7 @@ class DataCollector(threading.Thread):
         generic function to grab more data
         :return:
         """
-        start_checker = get_checker(self.checker)
+        start_checker = get_checker(self.checker, self.logger)
         md = start_checker['sec_time']
 
         for sec_time in range(md, 365):
@@ -133,7 +99,7 @@ class DataCollector(threading.Thread):
                 for index, target in enumerate(self.tgt_list):
                     if target['dead'] is not True:
                         ret_photos = get_payload(target['lat'], target['lon'],
-                                                 curr_eval, delta_time)
+                                                 curr_eval, API_KEY, delta_time)
                         numinserted = 0
                         for photo in ret_photos:
                             target['file'].write(json.dumps(photo) + "\n")
@@ -144,7 +110,7 @@ class DataCollector(threading.Thread):
                             self.tgt_list[index]['dead'] = True
                         elif numinserted > 0:
                             self.logger.info((self.basename + " received: ",
-                                         str(len(ret_photos)) + " Inserted: " + str(numinserted)))
+                                              str(len(ret_photos)) + " Inserted: " + str(numinserted)))
 
             for index, target in enumerate(self.tgt_list):
                 self.tgt_list[index]['dead'] = False
@@ -196,50 +162,3 @@ class DataCollector(threading.Thread):
         else:
             return False
         return line['id']
-
-
-def build_targets(inpt, num, basename):
-    """
-    build a grid of lat/longs that tell us where we will be collecting.
-    :param inpt:
-    :param num:
-    :param basename:
-    :return:
-    """
-    lats = sorted(list([inpt[0][0], inpt[1][0]]))
-    lons = sorted(list([inpt[0][1], inpt[1][1]]))
-
-    maxlat = max(lats)
-    minlat = min(lats)
-    maxlon = max(lons)
-    minlon = min(lons)
-    latdiff = maxlat - minlat
-    londiff = maxlon - minlon
-    retvals = list()
-    for latval in range(0, num):
-        for lonval in range(0, num):
-            newlat = minlat + (latdiff / float(num)) * latval
-            newlon = minlon + (londiff / float(num)) * lonval
-            fname = basename + "_" + str(latval) + "_" + str(lonval) + ".json"
-            r = dict({'lat': newlat, 'lon': newlon,
-                      'fname': fname, 'dead': False})
-            retvals.append(r)
-    return retvals
-
-
-def get_checker(fname):
-    """
-    get where we last left off
-    :param fname:
-    :return:
-    """
-    if not os.path.isfile(fname):
-        check = dict({u"sec_time": 1, u"curr_page": 1})
-    else:
-        with open(fname, 'rb') as infile:
-            check = pickle.load(infile)
-
-    self.logger.info(check)
-    return check
-
-
