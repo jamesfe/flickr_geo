@@ -4,16 +4,16 @@ The horrible python tests I've written for this.
 
 Needs improvement.
 """
-from __future__ import (absolute_import, division, unicode_literals, print_function)
+from __future__ import (absolute_import)
 
 import unittest
-from flickr_puller import *
+import flickr_puller
 
 
 class TestFlickerPuller(unittest.TestCase):
     def setUp(self):
-        testfile = open("./tag_data.txt", 'r')
-        self.testdata = testfile.read()
+        with open("./tag_data.txt", 'r') as testfile:
+            self.testdata = testfile.read()
 
     def test_clean_tags(self):
         stopwords = flickr_puller.get_stopwords()
@@ -24,3 +24,7 @@ class TestFlickerPuller(unittest.TestCase):
         for tag in set(cleantags.split(" ")):
             for nf in nofinds:
                 self.assertEqual(tag.find(nf), -1)
+
+
+if __name__ == '__main__':
+    unittest.main()
