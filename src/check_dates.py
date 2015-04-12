@@ -13,4 +13,4 @@ for line in infile:
     except ValueError:
         pass
 
-print maxdate
+print(maxdate)

@@ -3,3 +3,6 @@ instagram
 flickriosapp
 filter
 upload
+img
+vision
+taxonomy

@@ -9,4 +9,4 @@ shp/
 .idea/
 *.json
 src/api_key.txt
-
+*.log

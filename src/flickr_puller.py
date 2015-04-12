@@ -1,6 +1,9 @@
+# coding: utf-8
 """
 A quick script to pull some data from flickr surrounding given points.
 """
+from __future__ import (absolute_import, division, unicode_literals, print_function)
+
 import json
 import time
 import datetime
@@ -137,7 +140,7 @@ def gather_nyc_data(thr_vals, class_notes, outfile):
               "WHERE gc.geo_code=%s " \
               "AND gc.geo_notes=%s LIMIT %s"
         data = (index, class_notes, thr * 2)
-        print curs.mogrify(sql, data)
+        print(curs.mogrify(sql, data))
         curs.execute(sql, data)
         res = curs.fetchall()
         for r in res:
@@ -146,9 +149,9 @@ def gather_nyc_data(thr_vals, class_notes, outfile):
             if len(tags) > 0 and len(ret_vals[index]) < thr_vals[index]:
                 ret_vals[index].append([r['geo_code'], tags])
 
-    print [len(_) for _ in ret_vals]
+    print([len(_) for _ in ret_vals])
 
-    outfile = file(outfile, 'w')
+    outfile = open(outfile, 'w')
     pickle.dump(ret_vals, outfile)
     outfile.close()
 
@@ -200,9 +203,9 @@ def import_line(line):
         try:
             curs.execute(sql, data)
             CONNECTION.commit()
-        except psycopg2.Error, err:
-            print("ERROR: {0} {1}".format(
-                err.diag.severity, err.pgerror))
+        except psycopg2.Error as err:
+            print(("ERROR: {0} {1}".format(
+                err.diag.severity, err.pgerror)))
     else:
         return False
     return line['id']
@@ -214,7 +217,7 @@ def file_to_database(filename):
     :param filename:
     :return:
     """
-    print filename
+    print(filename)
     global CONNECTION
     CONNECTION = connect()
 
@@ -235,20 +238,20 @@ def file_to_database(filename):
             if new_id is not False:
                 inserts += 1
 
-    print "Imported: ", inserts, " out of ", count
+    print("Imported: ", inserts, " out of ", count)
 
 
 def train_dataset(ret_tags):
     random.shuffle(ret_tags)
-    print "Sample: "
-    print ret_tags[0]
+    print("Sample: ")
+    print(ret_tags[0])
 
     line = int(math.floor(len(ret_tags) * .80))
-    print line, len(ret_tags)
+    print(line, len(ret_tags))
 
     all_vals = np.array([_[0] for _ in ret_tags])
-    print "All Values: ", np.histogram(all_vals,
-                                       bins=[-.5, 0.5, 1.5, 2.5, 3.5, 4.5])
+    print("All Values: ", np.histogram(all_vals,
+                                       bins=[-.5, 0.5, 1.5, 2.5, 3.5, 4.5]))
 
     trng_vals = [_[0] for _ in ret_tags[0:line]]
     trng_docs = [_[1] for _ in ret_tags[0:line]]
@@ -265,8 +268,8 @@ def train_dataset(ret_tags):
 
     predicted = text_clf.predict(test_docs)
 
-    print np.histogram(predicted, bins=[-.5, 0.5, 1.5, 2.5, 3.5, 4.5])
-    print "Average prediction: ", np.mean(predicted == test_vals)
+    print(np.histogram(predicted, bins=[-.5, 0.5, 1.5, 2.5, 3.5, 4.5]))
+    print("Average prediction: ", np.mean(predicted == test_vals))
 
     return text_clf
 
@@ -331,7 +334,7 @@ def classify_database(clsfy, classrun, notes, num):
     for r in res:
         count += 1
         if (count % 10000) == 0:
-            print time.asctime(), count
+            print(time.asctime(), count)
         tags = r[3] + " " + r[4]
         tags = clean_tags(tags, stopwords, findwords)
         prediction = int(clsfy.predict([tags])[0])  # this might be an issue
@@ -344,9 +347,9 @@ def classify_database(clsfy, classrun, notes, num):
             curs.execute(sql, data)
             CONNECTION.commit()
         except Exception as err:
-            print curs.mogrify(sql, data)
-            print "Exception of type : " + str(type(err)) \
-                  + ".  Rolling back..." + str(err)
+            print(curs.mogrify(sql, data))
+            print("Exception of type : " + str(type(err)) \
+                  + ".  Rolling back..." + str(err))
             # pick the data, then add to another DB row
 
 
@@ -396,7 +399,7 @@ def geohash_to_polygons(classrun, num, look_box, accuracy=8):
                         "properties": dict()})
         # val = max(geohashes[res])
 
-        val = sorted(geohashes[res].items(),
+        val = sorted(list(geohashes[res].items()),
                      key=itemgetter(1), reverse=True)[0][0]
 
         # print val, geohashes[res]
@@ -423,13 +426,13 @@ def train_to_database(num_trng, notes, classrun, label_datafile):
 
     :return:
     """
-    nyc_trng_file = file(label_datafile, 'r')
+    nyc_trng_file = open(label_datafile, 'r')
     nyc_trng = pickle.load(nyc_trng_file)
     nyc_trng_file.close()
 
     trng_vals = list()
     for i in range(0, len(nyc_trng)):
-        print "Row ", i, ": ", len(nyc_trng[i])
+        print("Row ", i, ": ", len(nyc_trng[i]))
         for j in range(0, len(nyc_trng[i])):
             trng_vals.append(nyc_trng[i][j])
 
@@ -439,14 +442,14 @@ def train_to_database(num_trng, notes, classrun, label_datafile):
 
 
 def find_overlapping_tags(trng_file, over_file):
-    nyc_trng_file = file(trng_file, 'r')
+    nyc_trng_file = open(trng_file, 'r')
     nyc_trng = pickle.load(nyc_trng_file)
     nyc_trng_file.close()
 
     trng_vals = list()
 
     for i in range(0, len(nyc_trng)):
-        print "Row ", i, ": ", len(nyc_trng[i])
+        print("Row ", i, ": ", len(nyc_trng[i]))
         for j in range(0, len(nyc_trng[i])):
             trng_vals.append(nyc_trng[i][j])
 
@@ -454,7 +457,7 @@ def find_overlapping_tags(trng_file, over_file):
     stopwords = get_stopwords()
     findwords = get_findwords()
 
-    ofile = file(over_file, 'w')
+    ofile = open(over_file, 'w')
 
     for i in trng_vals:
         in_tags = [clean_tags(i[1], stopwords, findwords)]
@@ -466,7 +469,7 @@ def find_overlapping_tags(trng_file, over_file):
 
 
 def get_stopwords():
-    swfile = file("./stopwords.txt", 'r')
+    swfile = open("./stopwords.txt", 'r')
     stopwords = list()
     for ln in swfile:
         stopwords.append(ln.lower().strip())
@@ -475,7 +478,7 @@ def get_stopwords():
 
 
 def get_findwords():
-    swfile = file("./findwords.txt", 'r')
+    swfile = open("./findwords.txt", 'r')
     stopwords = list()
     for ln in swfile:
         stopwords.append(ln.lower().strip())
@@ -492,7 +495,7 @@ def getwords(tgt):
     sw = get_stopwords()
     fw = get_findwords()
 
-    nyc_trng_file = file("./nyc_trng_100.pickle", 'r')
+    nyc_trng_file = open("./nyc_trng_100.pickle", 'r')
     nyc_trng = pickle.load(nyc_trng_file)
     nyc_trng_file.close()
 
@@ -500,7 +503,7 @@ def getwords(tgt):
     for i in nyc_trng[tgt]:
         tags = clean_tags(i[1], sw, fw)
         wordlist += tags
-    print wordlist
+    print(wordlist)
 
 
 def perform_geo_class_nyc():
@@ -528,10 +531,10 @@ def perform_geo_class_nyc():
     # Warning: doens't take into account non-NYC classifications
     curs.execute(sql)
     res = curs.fetchall()
-    print "Results to categorize: ", len(res)
+    print("Results to categorize: ", len(res))
     for numcoord, line in enumerate(res):
         if (numcoord % 10000) == 0:
-            print time.asctime(), "Geo categorized: ", numcoord
+            print(time.asctime(), "Geo categorized: ", numcoord)
         tgt_point = Point(line['longitude'], line['latitude'])
         # if not tgt_point.intersects(not_nyc_shp):
         tval = -1
@@ -564,11 +567,11 @@ if __name__ == "__main__":
     # # print "Overlaps complete."
     # # train_to_database(-1, "test_1", 8001, trn_file)
     # hashlen = 6
-    # ofile = file("./webapp/data/nyc_outfile_geohash"+str(hashlen)+".json", 'w')
+    # ofile = open("./webapp/data/nyc_outfile_geohash"+str(hashlen)+".json", 'w')
     # all_lbox = dict({'lats': [30, 50], 'lons': [-60, -200]})
     # rvals = geohash_to_polygons(8001, 2240000, all_lbox, hashlen)
     # ofile.write("var inData =")
     # ofile.write(json.dumps(rvals))
     # ofile.write(";\n")
     # ofile.close()
-    print "done"
+    print("done")

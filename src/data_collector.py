@@ -1,3 +1,6 @@
+# coding: utf-8
+from __future__ import (absolute_import, division, unicode_literals, print_function)
+
 """
 A program to pull data over a set of coordinates  Uses flickr_puller
 """
@@ -5,6 +8,7 @@ A program to pull data over a set of coordinates  Uses flickr_puller
 import time
 import os
 import json
+import logging
 import pickle
 import threading
 import datetime as dt
@@ -75,7 +79,8 @@ class DataCollector(threading.Thread):
 
         if not os.path.isdir(basepath):
             os.mkdir(basepath)
-            print "Made directory: ", basepath
+            LOGGER.info("Made directory: " + basepath)
+
 
         for target in self.tgt_list:
             tm = os.path.join(basepath,
@@ -100,7 +105,7 @@ class DataCollector(threading.Thread):
         run the collector
         :return:
         """
-        print "Starting.", self.checker
+        LOGGER.info("Starting " + self.checker)
         self.pull_data()
 
     def pull_data(self):
@@ -112,14 +117,14 @@ class DataCollector(threading.Thread):
         md = start_checker['sec_time']
 
         for sec_time in range(md, 365):
-            print time.asctime(), self.basename, " seconds: ", sec_time
+            LOGGER.info(self.basename + " seconds: " + str(sec_time))
             minpage = 0
             if sec_time != start_checker['sec_time']:
-                    minpage = start_checker['curr_page']
+                minpage = start_checker['curr_page']
 
             for curr_eval in range(minpage, 5):  # number of pages left = 5
 
-                checker = file(self.checker, 'w')
+                checker = open(self.checker, 'wb')
                 pickle.dump(dict({"sec_time": sec_time,
                                   "curr_page": curr_eval}), checker)
                 checker.close()
@@ -138,8 +143,8 @@ class DataCollector(threading.Thread):
                         if len(ret_photos) == 0 or numinserted == 0:
                             self.tgt_list[index]['dead'] = True
                         elif numinserted > 0:
-                            print time.asctime(), self.basename, " received: ", \
-                                len(ret_photos), " Inserted: ", numinserted
+                            LOGGER.info((self.basename + " received: ",
+                                         str(len(ret_photos)) + " Inserted: " + str(numinserted)))
 
             for index, target in enumerate(self.tgt_list):
                 self.tgt_list[index]['dead'] = False
@@ -185,8 +190,8 @@ class DataCollector(threading.Thread):
             try:
                 curs.execute(sql, data)
                 self.conn.commit()
-            except psycopg2.Error, err:
-                print("ERROR: {0} {1}".format(
+            except psycopg2.Error as err:
+                LOGGER.error("ERROR: {0} {1}".format(
                     err.diag.severity, err.pgerror))
         else:
             return False
@@ -228,16 +233,20 @@ def get_checker(fname):
     :param fname:
     :return:
     """
-    try:
-        r = file(fname, 'r')
-    except:
-        return dict({"sec_time": 1, "curr_page": 1})
-    check = pickle.load(r)
-    print check
+    if not os.path.isfile(fname):
+        check = dict({u"sec_time": 1, u"curr_page": 1})
+    else:
+        with open(fname, 'rb') as infile:
+            check = pickle.load(infile)
+
+    LOGGER.info(check)
     return check
 
 
 if __name__ == "__main__":
+    global LOGGER
+    logging.basicConfig(filename='flickr_datacollect.log', level=logging.INFO)
+    LOGGER = logging.getLogger()
 
     colls = list()
 
@@ -248,22 +257,22 @@ if __name__ == "__main__":
                                    "./data/hroads"+yrs, "hr_data"+yrs,
                                    [37.91, -77.81], [35.8, -75.40],
                                    10, dt.datetime(yr, 1, 1)))
-        colls.append(DataCollector("./checkers/sf_checker"+yrs+".pickle",
-                                   "./data/sfo"+yrs, "sfo_tgts_test"+yrs,
-                                   [38, -123], [37, -120],
-                                   5, dt.datetime(yr, 1, 1)))
-        colls.append(DataCollector("./checkers/nyc"+yrs+".pickle",
-                                   "./data/nyc/"+yrs, "nyc"+yrs,
-                                   [42, -75], [40, -72],
-                                   10, dt.datetime(yr, 1, 1)))
-        colls.append(DataCollector("./checkers/bigdc"+yrs+".pickle",
-                                   "./data/wdc/"+yrs, "wdc"+yrs,
-                                   [40, -78], [37.5, -76],
-                                   8, dt.datetime(yr, 1, 1)))
-        colls.append(DataCollector("./stisle"+yrs+".pickle",
-                                   "./data/stislestisle"+yrs, "stl"+yrs,
-                                   [40.6, -74.3], [40.4, -73.9],
-                                   3, dt.datetime(yr, 1, 1)))
+        # colls.append(DataCollector("./checkers/sf_checker"+yrs+".pickle",
+        #                            "./data/sfo"+yrs, "sfo_tgts_test"+yrs,
+        #                            [38, -123], [37, -120],
+        #                            5, dt.datetime(yr, 1, 1)))
+        # colls.append(DataCollector("./checkers/nyc"+yrs+".pickle",
+        #                            "./data/nyc/"+yrs, "nyc"+yrs,
+        #                            [42, -75], [40, -72],
+        #                            10, dt.datetime(yr, 1, 1)))
+        # colls.append(DataCollector("./checkers/bigdc"+yrs+".pickle",
+        #                            "./data/wdc/"+yrs, "wdc"+yrs,
+        #                            [40, -78], [37.5, -76],
+        #                            8, dt.datetime(yr, 1, 1)))
+        # colls.append(DataCollector("./stisle"+yrs+".pickle",
+        #                            "./data/stislestisle"+yrs, "stl"+yrs,
+        #                            [40.6, -74.3], [40.4, -73.9],
+        #                            3, dt.datetime(yr, 1, 1)))
 
     for i in colls:
         i.start()

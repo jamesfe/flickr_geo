@@ -1,10 +1,18 @@
+# coding: utf-8
+"""
+The horrible python tests I've written for this.
+
+Needs improvement.
+"""
+from __future__ import (absolute_import, division, unicode_literals, print_function)
+
 import unittest
 import flickr_puller
 
 
 class TestFlickerPuller(unittest.TestCase):
     def setUp(self):
-        testfile = file("./tag_data.txt", 'r')
+        testfile = open("./tag_data.txt", 'r')
         self.testdata = testfile.read()
 
     def test_clean_tags(self):
@@ -15,4 +23,4 @@ class TestFlickerPuller(unittest.TestCase):
         cleantags = flickr_puller.clean_tags(self.testdata, stopwords, nofinds)
         for tag in set(cleantags.split(" ")):
             for nf in nofinds:
-                self.assertEquals(tag.find(nf), -1)
+                self.assertEqual(tag.find(nf), -1)
