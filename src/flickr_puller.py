@@ -2,11 +2,13 @@
 """
 A quick script to pull some data from flickr surrounding given points.
 """
+# TODO: LOTS OF encode/decode work
 from __future__ import (absolute_import, division, unicode_literals, print_function)
 
 import json
 import time
 import datetime
+import logging
 import fiona
 from shapely.geometry import Point, shape
 import pickle
@@ -15,8 +17,7 @@ import psycopg2.extras
 import re
 import random
 
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.linear_model import SGDClassifier
 from sklearn.pipeline import Pipeline
 import numpy as np
@@ -140,7 +141,7 @@ def gather_nyc_data(thr_vals, class_notes, outfile):
               "WHERE gc.geo_code=%s " \
               "AND gc.geo_notes=%s LIMIT %s"
         data = (index, class_notes, thr * 2)
-        print(curs.mogrify(sql, data))
+        LOGGER.info(curs.mogrify(sql, data))
         curs.execute(sql, data)
         res = curs.fetchall()
         for r in res:
@@ -149,9 +150,9 @@ def gather_nyc_data(thr_vals, class_notes, outfile):
             if len(tags) > 0 and len(ret_vals[index]) < thr_vals[index]:
                 ret_vals[index].append([r['geo_code'], tags])
 
-    print([len(_) for _ in ret_vals])
+    LOGGER.info([len(_) for _ in ret_vals])
 
-    outfile = open(outfile, 'w')
+    outfile = open(outfile, 'wb')
     pickle.dump(ret_vals, outfile)
     outfile.close()
 
@@ -347,9 +348,9 @@ def classify_database(clsfy, classrun, notes, num):
             curs.execute(sql, data)
             CONNECTION.commit()
         except Exception as err:
-            print(curs.mogrify(sql, data))
-            print("Exception of type : " + str(type(err)) \
-                  + ".  Rolling back..." + str(err))
+            LOGGER.error(curs.mogrify(sql, data))
+            LOGGER.error("Exception of type : " + str(type(err))
+                         + ".  Rolling back..." + str(err))
             # pick the data, then add to another DB row
 
 
@@ -426,7 +427,8 @@ def train_to_database(num_trng, notes, classrun, label_datafile):
 
     :return:
     """
-    nyc_trng_file = open(label_datafile, 'r')
+    ## TODO: ISSUES HERE Py3
+    nyc_trng_file = open(label_datafile, 'rb')
     nyc_trng = pickle.load(nyc_trng_file)
     nyc_trng_file.close()
 
@@ -442,7 +444,7 @@ def train_to_database(num_trng, notes, classrun, label_datafile):
 
 
 def find_overlapping_tags(trng_file, over_file):
-    nyc_trng_file = open(trng_file, 'r')
+    nyc_trng_file = open(trng_file, 'rb')
     nyc_trng = pickle.load(nyc_trng_file)
     nyc_trng_file.close()
 
@@ -556,6 +558,9 @@ def perform_geo_class_nyc():
         CONNECTION.commit()
 
 if __name__ == "__main__":
+    global LOGGER
+    logging.basicConfig(filename='flickr_datacollect.log', level=logging.INFO)
+    LOGGER = logging.getLogger()
     # dc_lbox = dict({"lats": [40, 37.5], "lons": [-78, -76]})
     # nyc_lbox = dict({"lats": [42, 40], "lons": [-75, -72]})
 
