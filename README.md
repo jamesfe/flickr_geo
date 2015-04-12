@@ -1,7 +1,7 @@
 Flickr Borough Analyzer
 =======================
 
-https://caniusepython3.com/check/7dcb0269-46b2-4423-9cad-1ffa443016d0.svg
+![alt python3port](https://caniusepython3.com/check/7dcb0269-46b2-4423-9cad-1ffa443016d0.svg)
 
 Introduction
 ------------
