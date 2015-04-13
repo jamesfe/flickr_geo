@@ -2,7 +2,7 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
 import logging
-from borough import DataCollector as DC
+from borough import DataCollector as DataColl
 import datetime as dt
 
 if __name__ == "__main__":
@@ -15,10 +15,11 @@ if __name__ == "__main__":
     # for yr in [2011, 2012, 2013, 2014]:
     for yr in [2006, 2007, 2008, 2009, 2010]:
         yrs = str(yr)
-        colls.append(DC.DataCollector(logname=__name__, checker_name="./data/checkers/hampton_roads"+yrs+".pickle",
-                                      basepath="./data/hroads"+yrs, basename="hr_data"+yrs,
-                                      top_left=[37.91, -77.81], bottom_right=[35.8, -75.40],
-                                      numpieces=10, start_date=dt.datetime(yr, 1, 1)))
+        colls.append(DataColl.DataCollector(logname=__name__, checker_name="./data/checkers/hampton_roads"+yrs+".pickle",
+                                            basepath="./data/hroads"+yrs, basename="hr_data"+yrs,
+                                            top_left=[37.91, -77.81], bottom_right=[35.8, -75.40],
+                                            numpieces=10, start_date=dt.datetime(yr, 1, 1)))
+        # TODO: Fix these guys up.
         # colls.append(DataCollector("../data/checkers/sf_checker"+yrs+".pickle",
         #                            "./data/sfo"+yrs, "sfo_tgts_test"+yrs,
         #                            [38, -123], [37, -120],

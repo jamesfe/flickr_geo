@@ -19,6 +19,10 @@ with open("api_key.txt", 'r') as apikey:
 
 
 class DataCollector(threading.Thread):
+    """
+    Derived from Thread so we ran run lots of these guys, this class defines a single collections task.
+    """
+
     def __init__(self, logname=None, checker_name=None, basepath=None, basename=None, top_left=None,
                  bottom_right=None, numpieces=None, start_date=None):
         """
@@ -162,3 +166,4 @@ class DataCollector(threading.Thread):
         else:
             return False
         return line['id']
+
