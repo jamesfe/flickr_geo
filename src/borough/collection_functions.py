@@ -16,7 +16,7 @@ def get_payload(city_lat=None, city_lon=None, c_page=None, api_key=None, min_dat
     :return:
     """
     start = time.time()
-    threshold = 18  # number of seconds we want a call to take
+    threshold = 25  # number of seconds we want a call to take
     payload = {"method": "flickr.photos.search",
                "accuracy": 8,
                "lat": city_lat,

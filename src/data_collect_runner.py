@@ -19,23 +19,23 @@ if __name__ == "__main__":
                                             basepath="./data/hroads"+yrs, basename="hr_data"+yrs,
                                             top_left=[37.91, -77.81], bottom_right=[35.8, -75.40],
                                             numpieces=10, start_date=dt.datetime(yr, 1, 1)))
-        # TODO: Fix these guys up.
-        # colls.append(DataCollector("../data/checkers/sf_checker"+yrs+".pickle",
-        #                            "./data/sfo"+yrs, "sfo_tgts_test"+yrs,
-        #                            [38, -123], [37, -120],
-        #                            5, dt.datetime(yr, 1, 1)))
-        # colls.append(DataCollector("../data/checkers/nyc"+yrs+".pickle",
-        #                            "./data/nyc/"+yrs, "nyc"+yrs,
-        #                            [42, -75], [40, -72],
-        #                            10, dt.datetime(yr, 1, 1)))
-        # colls.append(DataCollector("../data/checkers/bigdc"+yrs+".pickle",
-        #                            "./data/wdc/"+yrs, "wdc"+yrs,
-        #                            [40, -78], [37.5, -76],
-        #                            8, dt.datetime(yr, 1, 1)))
-        # colls.append(DataCollector("./data/checkers/stisle"+yrs+".pickle",
-        #                            "./data/stislestisle"+yrs, "stl"+yrs,
-        #                            [40.6, -74.3], [40.4, -73.9],
-        #                            3, dt.datetime(yr, 1, 1)))
+
+        colls.append(DataColl.DataCollector(logname=__name__, checker_name="./data/checkers/sf_checker"+yrs+".pickle",
+                                            basepath="./data/sfo"+yrs, basename="sfo_tgts_test"+yrs,
+                                            top_left=[38, -123], bottom_right=[37, -120],
+                                            numpieces=5, start_date=dt.datetime(yr, 1, 1)))
+        colls.append(DataColl.DataCollector(logname=__name__, checker_name="./data/checkers/nyc"+yrs+".pickle",
+                                            basepath="./data/nyc/"+yrs, basename="nyc"+yrs,
+                                            top_left=[42, -75], bottom_right=[40, -72],
+                                            numpieces=10, start_date=dt.datetime(yr, 1, 1)))
+        colls.append(DataColl.DataCollector(logname=__name__, checker_name="./data/checkers/bigdc"+yrs+".pickle",
+                                            basepath="./data/wdc/"+yrs, basename="wdc"+yrs,
+                                            top_left=[40, -78], bottom_right=[37.5, -76],
+                                            numpieces=8, start_date=dt.datetime(yr, 1, 1)))
+        colls.append(DataColl.DataCollector(logname=__name__, checker_name="./data/checkers/stisle"+yrs+".pickle",
+                                            basepath="./data/stislestisle"+yrs, basename="stl"+yrs,
+                                            top_left=[40.6, -74.3], bottom_right=[40.4, -73.9],
+                                            numpieces=3, start_date=dt.datetime(yr, 1, 1)))
 
     for i in colls:
         i.start()
